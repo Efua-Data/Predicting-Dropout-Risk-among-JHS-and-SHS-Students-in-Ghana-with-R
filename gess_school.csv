@@ -1,0 +1,101 @@
+"School_ID","Region","Latitude_S","Longitude_S","School_Type","School_Level","Urban_Rural","Total_Enrolment","Pupil_Teacher_Ratio","Qualified_Teachers_Pct","Has_Library","Has_Laboratory","Has_ICT_Lab","Has_WASH_Facility","School_Feeding_Programme","BECE_Pass_Rate_Pct","WASSCE_Pass_Rate_Pct","Annual_Budget_GHS","Distance_to_District_HQ_km","High_Performing_School","Resource_Index"
+"SCH-001","Bono",7.4235,-2.3181,"Private","JHS","Rural",498,15.8,21.7,"Yes","No","No","Yes","Yes",69.8,64,46340,8.1,"No",4.5
+"SCH-002","Ahafo",7.4113,-2.7956,"Public","SHS","Rural",562,41.6,52.1,"No","Yes","No","Yes","No",78.4,32,67647,32.8,"Yes",4.7
+"SCH-003","North East",10.965,-0.3612,"Private","SHS","Urban",191,13.6,72.7,"Yes","Yes","No","No","Yes",NA,45.4,114768,0.5,"No",7.7
+"SCH-004","Northern",9.9821,-1.2734,"Public","JHS","Peri-urban",311,50.8,73.6,"No","No","No","No","Yes",53.1,59.4,152764,8.9,"No",4.7
+"SCH-005","Oti",7.9285,0.5475,"Private","SHS","Urban",235,35.5,78.4,"Yes","Yes","Yes","No","No",41.1,64.7,45579,3.7,"No",9.6
+"SCH-006","Western North",6.3364,-2.467,"Private","JHS","Rural",77,29.4,42.1,"No","Yes","Yes","No","No",63.9,60,88745,4.1,"No",6.3
+"SCH-007","Eastern",6.3311,-0.1924,"Public","SHS","Rural",482,53.9,69.4,"No","No","Yes","No","Yes",53.1,45.9,283425,37,"No",5.4
+"SCH-008","Oti",7.3904,0.7706,"Private","SHS","Peri-urban",447,38.5,63.1,"No","No","No","Yes","Yes",62.8,NA,20000,1.5,"Yes",4.7
+"SCH-009","Volta",6.8466,0.1114,"Mission","JHS","Rural",314,45.2,70.3,"No","No","No","No","Yes",40.9,57.5,20000,4.7,"No",3.4
+"SCH-010","North East",10.2989,-0.1891,"Private","Combined","Rural",808,44.4,47.4,"Yes","Yes","No","Yes","Yes",74,19.2,111532,49.2,"Yes",7.1
+"SCH-011","Bono East",8.2692,-1.6505,"Public","JHS","Urban",372,27,92,"No","No","Yes","Yes","No",58.5,73.7,138295,2,"Yes",7
+"SCH-012","Central",4.9813,-1.5136,"Mission","JHS","Rural",585,33,59.7,"No","No","No","Yes","Yes",58,43.4,66638,9.1,"No",4.9
+"SCH-013","Volta",6.735,0.3832,"Public","JHS","Urban",193,10,70.9,"No","No","No","Yes","No",67.5,75.6,176600,3,"Yes",4.2
+"SCH-014","Bono",8.0507,-1.8343,"Public","JHS","Rural",433,34.9,62.8,"No","No","No","No","No",NA,54,NA,12.9,"Yes",3.5
+"SCH-015","Eastern",6.8216,-0.5087,"Private","JHS","Peri-urban",416,38.6,85,"No","No","No","Yes","Yes",79.6,95.4,177064,3.4,"Yes",6.1
+"SCH-016","Northern",9.6677,-1.3087,"Public","SHS","Urban",527,34.2,74.3,"No","Yes","No","Yes","Yes",54.4,79.8,72382,4.3,"Yes",6.8
+"SCH-017","Western",4.9127,-2.079,"Public","SHS","Urban",208,33.6,74,"No","No","No","Yes","No",44.3,47.7,165140,26.6,"No",5.1
+"SCH-018","Upper West",9.9053,-2.2049,"Private","JHS","Rural",312,42.1,49.5,"Yes","Yes","No","No","No",69.1,34.7,154015,80,"No",5.5
+"SCH-019","Western North",6.0734,-3.0215,"Public","SHS","Rural",592,26.9,81.8,"Yes","No","No","Yes","Yes",70,40.7,197702,0.5,"No",7.5
+"SCH-020","Greater Accra",5.7865,0.176,"Public","SHS","Rural",625,45.3,20,"No","Yes","No","Yes","No",34,50.3,54361,0.5,"No",4.4
+"SCH-021","Western",5.5852,-1.6182,"Public","Combined","Rural",585,30.5,75.6,"Yes","No","Yes","Yes","Yes",62.6,35.3,72420,3.9,"No",9.3
+"SCH-022","Upper East",10.8499,-0.6452,"Public","JHS","Rural",327,44.8,55.8,"Yes","Yes","No","No","No",72.8,17.9,59561,46.8,"Yes",6.9
+"SCH-023","Upper East",10.5944,-0.8752,"Private","JHS","Urban",381,25.2,64.6,"No","No","No","No","Yes",59.7,93.9,49004,0.5,"Yes",3.1
+"SCH-024","Eastern",6.0625,-0.405,"Public","JHS","Peri-urban",509,34.3,NA,"No","Yes","No","Yes","Yes",99.5,69.3,38307,14.1,"Yes",7.2
+"SCH-025","Ashanti",7.174,-1.1931,"Public","SHS","Rural",531,39.5,58.2,"No","No","Yes","Yes","No",52.8,68.2,156853,11.7,"No",5.6
+"SCH-026","Ahafo",6.8161,-2.8518,"Public","JHS","Peri-urban",231,NA,89.1,"Yes","No","No","Yes","No",81.1,94,53090,0.9,"Yes",7.3
+"SCH-027","Savannah",9.5448,-1.553,"Public","SHS","Urban",335,34.1,60.3,"No","No","No","No","Yes",58.4,91.1,68267,4.3,"Yes",2.6
+"SCH-028","Oti",7.9565,-0.0307,"Public","JHS","Peri-urban",124,35.9,59.7,"No","No","Yes","Yes","Yes",50.1,44.6,94334,7.5,"No",5.7
+"SCH-029","Greater Accra",5.9453,-0.1833,"Public","JHS","Rural",947,19.8,71.3,"No","No","Yes","No","Yes",64.1,45.9,110897,34.3,"No",6
+"SCH-030","Western",4.7938,-1.7263,"Public","Combined","Peri-urban",713,42.4,63.3,"Yes","No","Yes","Yes","Yes",87.6,24.8,101610,14,"Yes",9.1
+"SCH-031","Bono East",7.615,-2.0681,"Public","SHS","Rural",374,NA,62,"No","No","Yes","No","Yes",37.5,NA,152569,1,"No",5.8
+"SCH-032","Northern",9.9069,-1.0218,"Public","JHS","Peri-urban",127,46.6,69.4,"Yes","No","Yes","Yes","Yes",49,50.9,65044,9.5,"No",8.1
+"SCH-033","Eastern",6.9457,-0.1025,"Private","SHS","Rural",605,NA,62.2,"Yes","No","No","Yes","No",55.1,36.6,44521,54.6,"No",6.9
+"SCH-034","Western",5.0516,-2.5893,"Public","SHS","Rural",575,42.8,63.8,"Yes","No","No","No","Yes",85.6,15.1,136300,7.3,"Yes",5.7
+"SCH-035","Ashanti",6.2736,-1.1269,"Mission","JHS","Rural",401,43.8,46.9,"No","No","No","No","No",30.1,69,61259,4,"No",2.4
+"SCH-036","Bono",7.9285,-2.1242,"Private","Combined","Peri-urban",385,10,67.5,"No","No","No","Yes","No",52.3,81.2,61918,4.1,"Yes",5.5
+"SCH-037","Northern",9.0409,-0.8381,"Mission","SHS","Rural",650,35,NA,"Yes","No","Yes","Yes","Yes",66.4,NA,130530,3.6,"No",8.3
+"SCH-038","Ashanti",6.4283,-2.0522,"Public","JHS","Rural",572,38.7,59.5,"Yes","Yes","No","Yes","Yes",68,68.6,71859,9.2,"No",7.4
+"SCH-039","Northern",9.8064,-1.1738,"Public","Combined","Rural",812,34.4,53.3,"No","Yes","No","Yes","No",58.5,77,59862,8.7,"Yes",5.6
+"SCH-040","Bono East",7.6811,-1.6663,"Public","JHS","Urban",633,42.3,40.1,"Yes","Yes","No","No","No",48.8,NA,45706,1.3,"No",6.9
+"SCH-041","North East",10.9267,-0.8316,"Public","JHS","Peri-urban",278,10,46.7,"Yes","No","No","Yes","Yes",68.5,51.6,171953,1.6,"No",6
+"SCH-042","Upper East",10.7502,-0.553,"Public","SHS","Peri-urban",582,15,37.2,"No","Yes","No","No","Yes",47.3,71,73790,3.3,"Yes",4.7
+"SCH-043","Western",4.6381,-2.1231,"Public","JHS","Rural",426,58.9,67,"No","Yes","Yes","Yes","No",69,65,114812,10.9,"No",8
+"SCH-044","Upper West",10.3264,-2.7085,"Mission","Combined","Urban",467,18.9,53.5,"No","Yes","Yes","No","Yes",81.9,96.6,208403,6,"Yes",7.2
+"SCH-045","Eastern",6.2304,-0.4838,"Private","JHS","Peri-urban",563,30.1,67.4,"No","Yes","No","No","Yes",73.4,51.5,107001,9.5,"Yes",4.8
+"SCH-046","Western North",6.0712,-2.4369,"Public","JHS","Urban",736,28.8,52.5,"Yes","No","Yes","Yes","Yes",81.2,NA,99733,1.1,"Yes",7.5
+"SCH-047","Ashanti",6.631,-1.3391,"Public","SHS","Urban",436,25.1,79.9,"Yes","Yes","Yes","No","No",71.9,40.7,88536,3.8,"Yes",10
+"SCH-048","Volta",7.1272,0.8202,"Public","JHS","Rural",299,36.5,66.2,"Yes","Yes","No","Yes","No",77.8,26,140285,80,"Yes",7.5
+"SCH-049","Eastern",6.4721,-0.2465,"Public","SHS","Peri-urban",197,32.9,76.2,"Yes","No","No","Yes","No",79.2,40.4,166527,3.4,"Yes",7.2
+"SCH-050","Upper West",10.6017,-2.3874,"Public","JHS","Urban",772,30.7,78.6,"Yes","Yes","No","Yes","Yes",55.6,79.8,468016,9.8,"Yes",8.8
+"SCH-051","Northern",9.6309,-0.799,"Mission","SHS","Peri-urban",275,26,78.6,"Yes","No","Yes","Yes","Yes",100,38.4,32044,0.7,"Yes",9.1
+"SCH-052","Savannah",8.7126,-2.1654,"Public","SHS","Urban",646,37.3,45.1,"No","No","Yes","Yes","Yes",67.9,68.6,474125,0.5,"No",4.9
+"SCH-053","Bono East",7.4325,-1.5512,"Public","SHS","Urban",578,42.1,46,"Yes","No","Yes","Yes","No",77.8,57,260290,5.4,"Yes",7.3
+"SCH-054","Oti",7.7747,0.1996,"Public","Combined","Urban",168,41.4,49.8,"No","Yes","No","No","Yes",59.8,76.2,71256,5.6,"Yes",4.6
+"SCH-055","Upper West",10.4645,-2.748,"Public","JHS","Urban",297,42.3,62.7,"No","No","No","Yes","Yes",45.1,38.4,133778,1.4,"No",3.6
+"SCH-056","Upper East",11.0844,-0.967,"Public","JHS","Urban",583,33.3,53.8,"No","No","No","Yes","No",64.1,54.4,43918,1.1,"No",3.4
+"SCH-057","Ashanti",6.9991,-1.4854,"Mission","JHS","Rural",349,54.7,56.3,"No","Yes","No","Yes","No",58.1,67.4,50433,24.7,"No",5.8
+"SCH-058","Bono East",7.4633,-2.0743,"Public","SHS","Rural",576,47.7,57.2,"Yes","Yes","No","Yes","No",28.4,61.8,289520,2.5,"No",8.2
+"SCH-059","Greater Accra",5.9642,0.1537,"Public","JHS","Rural",585,54,45.6,"No","Yes","Yes","No","Yes",55.2,62.6,166734,11.5,"No",6.5
+"SCH-060","Upper East",10.9629,-0.7868,"Public","Combined","Peri-urban",752,34.2,86.4,"Yes","Yes","No","No","No",61,54,NA,0.5,"No",6.9
+"SCH-061","Upper West",10.1077,-2.5936,"Private","SHS","Rural",192,49.4,43.4,"Yes","Yes","No","No","No",65.4,56.2,59667,15.2,"No",7
+"SCH-062","Ashanti",7.1296,-1.1867,"Public","SHS","Rural",363,NA,64.9,"Yes","No","No","No","Yes",70.2,61.3,61108,37.3,"Yes",5.4
+"SCH-063","Greater Accra",5.703,-0.3331,"Private","SHS","Urban",242,37.7,100,"Yes","Yes","Yes","Yes","No",100,62.6,84030,5.1,"Yes",10
+"SCH-064","Ashanti",6.892,-1.2565,"Public","Combined","Peri-urban",347,29.5,38.5,"No","Yes","Yes","Yes","Yes",83.8,59.5,112082,11.2,"Yes",6.5
+"SCH-065","Western North",6.4233,-3.1437,"Public","SHS","Urban",430,38.9,22.4,"Yes","Yes","No","Yes","Yes",47.6,70.1,43644,1.3,"Yes",6.5
+"SCH-066","Bono",7.2109,-2.3312,"Mission","SHS","Peri-urban",50,21.8,98.6,"No","No","Yes","Yes","Yes",32.7,38.3,67177,5.3,"No",7.7
+"SCH-067","Ahafo",7.2552,-2.6958,"Private","JHS","Rural",310,50.3,57,"No","No","No","Yes","No",72,72.3,65299,49.7,"Yes",2.7
+"SCH-068","Upper East",10.4627,-0.4196,"Public","JHS","Urban",755,22.8,63.1,"Yes","Yes","Yes","No","Yes",64.2,50.5,104460,3.3,"No",8.9
+"SCH-069","Central",5.2154,-0.9448,"Private","JHS","Peri-urban",339,31.8,NA,"Yes","Yes","Yes","Yes","No",94,71.3,109604,0.8,"Yes",10
+"SCH-070","Western",5.1296,-2.4777,"Private","JHS","Urban",578,31,95.4,"No","Yes","No","Yes","No",54,48.9,47569,7.5,"No",8.2
+"SCH-071","Western North",5.9381,-2.7595,"Public","JHS","Urban",671,47.1,64.9,"No","Yes","No","Yes","No",89.7,89.9,230090,26.2,"Yes",6.3
+"SCH-072","Upper West",10.2078,-2.092,"Public","JHS","Urban",646,36,52.4,"No","No","No","No","No",NA,NA,75590,4.4,"Yes",2.4
+"SCH-073","Upper East",10.707,-0.5307,"Private","SHS","Peri-urban",587,37.8,77.4,"Yes","No","No","Yes","No",27.6,NA,101258,3.3,"Yes",6.9
+"SCH-074","Upper East",10.5896,-1.1747,"Public","SHS","Peri-urban",654,17.7,83.3,"No","No","No","No","No",69.4,41,NA,4.5,"No",4.3
+"SCH-075","Upper West",10.619,-2.6616,"Public","JHS","Urban",617,13.7,65.4,"No","Yes","No","Yes","No",38.5,71.5,126273,4.7,"Yes",6.6
+"SCH-076","Upper West",10.3127,-2.1095,"Public","JHS","Rural",108,46.5,44.9,"Yes","No","No","No","Yes",59.9,NA,137889,24.3,"No",3.2
+"SCH-077","Ahafo",7.1828,-2.9991,"Public","Combined","Rural",325,46.7,54.9,"Yes","Yes","No","Yes","No",79.9,16.7,NA,28.1,"Yes",7.8
+"SCH-078","Bono",7.7243,-2.4361,"Public","JHS","Rural",589,31.4,41.8,"No","No","No","Yes","No",NA,62.8,92085,8.8,"No",2.8
+"SCH-079","Western",5.0623,-2.2831,"Public","SHS","Urban",212,34.4,91.3,"Yes","Yes","Yes","Yes","Yes",86,73.4,177898,11.6,"Yes",10
+"SCH-080","Oti",8.0528,0.3702,"Private","Combined","Rural",184,50.7,42.8,"Yes","No","Yes","No","Yes",42.7,71.8,NA,4.9,"Yes",5.7
+"SCH-081","Bono",7.3699,-1.9435,"Public","SHS","Peri-urban",386,21.9,63.3,"No","No","No","No","Yes",69.5,50.2,NA,0.6,"No",2.8
+"SCH-082","Upper West",9.8445,-2.2738,"Mission","Combined","Rural",497,40.6,47.8,"No","No","No","Yes","No",82.3,85.1,99709,8.7,"Yes",3.3
+"SCH-083","North East",10.0817,-0.3619,"Private","Combined","Urban",103,34.2,44.4,"Yes","No","No","No","No",96.9,60,61244,3.7,"Yes",4.3
+"SCH-084","Western North",6.0839,-2.3167,"Public","Combined","Peri-urban",653,54.2,80.4,"Yes","Yes","No","Yes","No",71.2,91.5,29410,8.5,"Yes",8.6
+"SCH-085","Upper West",10.4868,-2.4512,"Mission","JHS","Rural",350,30.8,NA,"Yes","Yes","Yes","Yes","No",51,53.1,55242,9.1,"No",10
+"SCH-086","Bono East",8.0769,-1.2131,"Public","JHS","Rural",843,49.8,39.5,"Yes","No","Yes","No","No",63.6,36.3,252624,28,"No",6
+"SCH-087","Upper West",10.4562,-2.0358,"Mission","SHS","Rural",175,29.4,36.7,"No","No","No","Yes","Yes",56.6,50.3,100729,19,"No",3.4
+"SCH-088","North East",10.8043,-0.3992,"Private","SHS","Urban",564,62.2,63.1,"Yes","No","No","Yes","Yes",100,49.4,131414,2.4,"Yes",5.5
+"SCH-089","Upper West",9.9208,-2.9165,"Private","SHS","Urban",482,38,69.3,"Yes","No","No","Yes","No",76.6,58.9,64679,2.7,"Yes",7.3
+"SCH-090","Oti",8.0682,0.524,"Public","Combined","Urban",349,22.4,100,"No","No","Yes","No","No",NA,91.6,20000,6.9,"Yes",7.8
+"SCH-091","Greater Accra",5.6999,-0.2231,"Public","JHS","Rural",239,51.4,57.5,"Yes","Yes","No","Yes","No",41.7,71.8,232149,9.4,"Yes",7.3
+"SCH-092","Oti",7.2355,0.0535,"Public","SHS","Rural",373,48.1,56.1,"No","Yes","No","Yes","Yes",41.3,81.7,26438,12,"Yes",5.8
+"SCH-093","Ashanti",6.5107,-1.7939,"Mission","JHS","Peri-urban",467,44,72.8,"Yes","Yes","No","No","Yes",67.4,91.3,45849,1.9,"Yes",7.6
+"SCH-094","Greater Accra",5.1592,-0.1646,"Private","SHS","Urban",375,32.9,63.1,"No","Yes","Yes","Yes","Yes",69.5,54.2,108996,7.7,"No",7.9
+"SCH-095","Upper West",9.7874,-2.3848,"Public","SHS","Rural",351,47.5,100,"No","No","No","Yes","No",63.3,100,450933,1.2,"Yes",5.7
+"SCH-096","Eastern",6.6872,-0.1688,"Public","JHS","Peri-urban",405,27.3,NA,"Yes","Yes","No","Yes","Yes",76.1,57.3,77344,2,"Yes",8.1
+"SCH-097","Western North",6.5743,-2.3016,"Mission","SHS","Rural",617,50.1,74.1,"Yes","No","No","No","Yes",56,95.5,122654,39.5,"Yes",5.3
+"SCH-098","Central",5.615,-0.6225,"Public","JHS","Urban",543,10,63.4,"Yes","Yes","Yes","Yes","Yes",76,76.6,152547,4.2,"Yes",9.4
+"SCH-099","Ahafo",6.49,-2.4912,"Private","SHS","Urban",337,35.4,53.2,"Yes","Yes","No","Yes","No",100,56.2,230094,8,"Yes",7.6
+"SCH-100","Upper West",10.7421,-2.2503,"Public","SHS","Rural",491,45.2,85.4,"No","No","No","No","No",53.5,70.6,58448,3.5,"Yes",4.2

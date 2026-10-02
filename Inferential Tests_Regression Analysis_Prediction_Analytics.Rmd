@@ -1,0 +1,1951 @@
+---
+title: Predicting Dropout Risk among JHS and SHS Students in Ghana"
+subtitle: "Ghana Education and School Survey (GESS)"
+
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+header-includes:
+  - \renewcommand{\and}{\\}
+always_allow_html: true
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    fig_caption: true
+    latex_engine: xelatex
+  word_document:
+    toc: true
+    toc_depth: 3
+    fig_caption: true
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width  = 8,
+  fig.height = 5,
+  dpi = 300
+)
+set.seed(602)
+
+library(tidyverse)
+library(knitr)
+
+# --- additional packages for Task 3 (visualisation and geospatial) ---
+library(scales)      # axis formatting and percentage labels
+library(ggridges)    # ridge plot in Task 3 (Plot 4)
+library(sf)          # static choropleth map (Plot 5a)
+library(flextable)    # Word-ready tables required by Tasks 2e and 6
+
+#  GADM choropleth and leaflet map.
+if (!requireNamespace("leaflet", quietly = TRUE)) {
+  stop("Task 3 requires the leaflet package. Install it before knitting the final document.")
+}
+if (!requireNamespace("geodata", quietly = TRUE)) {
+  stop("Task 3 requires the geodata package. Install it before knitting the final document.")
+}
+library(leaflet)
+library(geodata)
+```
+
+# Cover page
+
+**Course:** DSCD 602 - Programming for Data Scientists II  
+**Department:** Department of Computer Science, University of Ghana, Legon  
+**Lecturer:** Issah Seidu, PhD  
+**Dataset:** Option B, Ghana Education and School Survey (GESS)
+
+**Group members**
+
+- Gbena Edem Komla (22425100)
+- Kwame Ofori-Gyau (22424324)
+- Botwi Ebenezer Kweku-Apea Jnr (22429815)
+- Richard Gbamara (22427514)
+- Nana Efua (22424872)
+
+# Contributions table
+```{r contributions-table}
+contributions <- tibble(
+  Task = paste("Task", 1:7),
+  `Primary contributor(s)` = c(
+    "Gbena Edem Komla (22425100)",
+    "Kwame Ofori-Gyau (22424324)",
+    "Nana Efua (22424872)",
+    "Richard Gbamara (22427514)",
+    "Botwi Ebenezer Kweku-Apea Jnr (22429815)",
+    "All group members",
+    "All group members"
+  ),
+  `Main responsibility` = c(
+    "Data import, joining and missing-value audit",
+    "Variable selection and data wrangling",
+    "Exploratory analysis and visualisations",
+    "Descriptive statistics and inferential tests",
+    "Regression analysis and interpretation",
+    "Predictive modelling and model comparison",
+    "Presentation, final review and viva preparation"
+  )
+)
+
+knitr::kable(contributions, caption = "Table 1: Group contributions")
+```
+
+# AI assistance disclosure
+
+Portions of the R code were produced with
+assistance from an AI coding tool. Every chunk was run on the GESS files
+in this folder, checked against the printed output, and edited by the
+group. The analytical decisions - including the join-key resolution and
+the missingness treatment rules - are ours, and each member can defend
+them in the viva.
+
+# 1. Introduction and analytical question
+
+This project looks at which student, household and school characteristics
+are linked to dropout risk and core-subject performance among JHS and SHS
+students in Ghana. We are using the Ghana Education and School Survey
+(GESS) dataset, which combines student records with information about the
+schools they attend.
+
+Our main outcome is `Dropout_Risk_Score` - a continuous score from 0 to
+10 - which we predict using multiple linear regression in Task 5. We also
+look at `Passed_Core` (whether a student passed core subjects) as a
+secondary outcome for the chi-square test in Task 4 and the
+classification model in Task 6. We do not use `Overall_Average` or the
+four individual subject scores as predictors of `Passed_Core`, because
+`Passed_Core` is defined as `Overall_Average >= 50` - predicting one from
+the other would not be a real finding. Task 1 covers importing, joining
+and cleaning the two files. Task 2 then prepares the final analysis
+dataset.
+
+# 2. Task 1: Data import, joining, and initial inspection
+
+## 2.1 Importing the data (Task 1a)
+
+We start by loading both CSV files using `read_csv()` from the `readr` package (part of
+`tidyverse`). Then we use `glimpse()` to see the structure of each file - how many rows and
+columns there are, what the column names are, and what type of data is in each column.
+
+```{r import-files}
+# load the two datasets
+gess_student <- read_csv("gess_student.csv")
+gess_school  <- read_csv("gess_school.csv")
+```
+
+```{r glimpse-student}
+# check the student data
+glimpse(gess_student)
+```
+
+The student file has `r nrow(gess_student)` rows and `r ncol(gess_student)` columns. Each
+row is one student. The `Student_ID` column is a unique identifier for each student, and
+`School_ID` links every student to their school. Students in this file come from
+`r n_distinct(gess_student$School_ID)` different schools. Most background columns like
+`Sex`, `Form_Level`, `Parent_Education`, `HH_Income_Band` and `Passed_Core` are stored as
+character type. The numeric columns include subject scores, `Overall_Average`,
+`Attendance_Rate_Pct`, `Study_Hours_Day`, `Teacher_Support_Score` and `Dropout_Risk_Score`.
+We will use `Dropout_Risk_Score` (a continuous score from 0 to 10) as the primary outcome
+for this project, and `Passed_Core` (Yes/No) as the secondary outcome.
+
+The codebook says `Passed_Core` is `Yes` whenever `Overall_Average` is 50 or above. 
+
+```{r check-passed-core}
+# check if Passed_Core exactly matches Overall_Average >= 50
+gess_student %>%
+  mutate(expected = if_else(Overall_Average >= 50, "Yes", "No")) %>%
+  count(Passed_Core, expected)
+```
+
+Every row in the table is on the diagonal - `Passed_Core` and `Overall_Average >= 50` match
+for all `r nrow(gess_student)` students. This means `Passed_Core` is just a recode of
+`Overall_Average`, not an independent outcome. We will not use `Overall_Average` or the
+four subject scores to predict `Passed_Core` - that would be predicting a variable from
+itself.
+
+```{r glimpse-school}
+# check the school data
+glimpse(gess_school)
+```
+
+The school file has `r nrow(gess_school)` rows and `r ncol(gess_school)` columns. Each row
+is one school. `School_ID` is the key that connects schools to students. Character columns
+describe school characteristics like `School_Type`, `School_Level` and `Urban_Rural`.
+Numeric columns include `Total_Enrolment`, `Pupil_Teacher_Ratio`, `Qualified_Teachers_Pct`,
+exam pass rates, `Annual_Budget_GHS` and `Resource_Index`. These school-level variables
+will be used as predictors of student dropout risk alongside the student-level predictors.
+
+## 2.2 Joining the two files (Task 1b)
+
+### Join key checks
+
+Before joining, we make sure `School_ID` is unique in the school file (so there is exactly
+one school record per school) and that every student has a matching school record.
+
+```{r check-school-id-duplicates}
+# check if School_ID is duplicated in the school file
+gess_school %>%
+  count(School_ID) %>%
+  filter(n > 1)
+```
+
+```{r check-unmatched-students}
+# check if any students do not have a matching school
+gess_student %>%
+  anti_join(gess_school, by = "School_ID")
+```
+
+Both checks return empty results. `School_ID` is unique in the school file and every student
+has a matching school record, so the join key is clean.
+
+### Left join and justification
+
+We used a left join starting from the student file. The analysis is about students, so we
+need to keep all `r nrow(gess_student)` student rows. A left join keeps every row from
+the left-hand table (the student file) and adds the matching school information alongside
+each student using `School_ID`. An inner join would give the same result here because every
+student already has a matching school, but a left join makes the intention clear - we never
+want to lose a student row.
+
+```{r join-files}
+# join the two datasets - student file on the left
+gess_joined <- gess_student %>%
+  left_join(gess_school, by = "School_ID", suffix = c("_student", "_school"))
+
+# confirm all students are still there
+nrow(gess_joined)
+```
+
+The joined file has `r nrow(gess_joined)` rows - exactly the same as the student file, so
+no students were lost.
+
+### Handling the duplicate Region column
+
+Both files have a `Region` column. When we joined them, `dplyr` created `Region_student`
+(from the student file) and `Region_school` (from the school file). We need to check whether
+they agree with each other.
+
+```{r check-region-agreement}
+# check how often the two Region columns agree
+region_mismatch_count <- sum(gess_joined$Region_student != gess_joined$Region_school,
+                             na.rm = TRUE)
+region_mismatch_pct   <- round(100 * region_mismatch_count / nrow(gess_joined), 1)
+
+gess_joined %>%
+  count(region_match = Region_student == Region_school)
+```
+
+The two Region columns disagree for `r region_mismatch_count` of `r nrow(gess_joined)` rows
+(`r region_mismatch_pct`%). 
+Because the school file is the official record of where each school is located, we use
+`school_region` for all geographic analysis. We keep `student_region` in the dataset as
+well, so the disagreement remains visible, but we do not use it for any summaries or maps.
+
+```{r rename-region-columns}
+# rename both Region columns and set the main Region to the school file's version
+gess_joined <- gess_joined %>%
+  rename(
+    student_region = Region_student,
+    school_region  = Region_school
+  ) %>%
+  mutate(Region = school_region)
+```
+
+### First 10 rows of the joined dataset
+
+```{r first-ten-rows}
+# look at the first 10 rows
+gess_joined %>%
+  slice_head(n = 10)
+```
+
+The joined dataset has `r nrow(gess_joined)` rows and `r ncol(gess_joined)` columns. The
+student count is unchanged, which confirms the left join kept every student.
+
+---
+
+## 2.3 Missing value audit (Task 1c)
+
+### Counting the missing values
+
+We use `colSums(is.na())` to count how many values are missing in every column of the joined
+dataset. We also calculate the percentage, using the 2,500 student rows as the denominator.
+
+```{r missing-audit}
+# count missing values in each column
+missing_before <- tibble(
+  Variable   = names(gess_joined),
+  Missing    = colSums(is.na(gess_joined))
+) %>%
+  mutate(Percentage = round(100 * Missing / nrow(gess_joined), 2)) %>%
+  arrange(desc(Missing))
+
+missing_before %>%
+  knitr::kable(caption = "Table 2: Missing-value counts for every variable in the joined dataset")
+```
+
+```{r variables-with-missing}
+# keep only the variables that have at least one missing value
+missing_with_nas <- missing_before %>%
+  filter(Missing > 0)
+
+missing_with_nas %>%
+  knitr::kable(caption = "Table 3: Variables with missing values only")
+```
+
+```{r missing-bar-chart, fig.cap = "Percentage of missing values in each incomplete variable. School-level variables show higher percentages because one missing school record is copied across all students at that school."}
+# bar chart of missing values
+ggplot(missing_with_nas,
+       aes(x = Percentage, y = reorder(Variable, Percentage))) +
+  geom_col(fill = "#1f4e79", width = 0.7) +
+  geom_text(aes(label = paste0(Percentage, "%")), hjust = -0.1, size = 3) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "Missingness among incomplete variables",
+    x     = "Missing (%)",
+    y     = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+```
+
+There are `r nrow(missing_with_nas)` variables with missing values. Several of the
+higher-percentage variables - `WASSCE_Pass_Rate_Pct`, `Annual_Budget_GHS`,
+`BECE_Pass_Rate_Pct`, `Qualified_Teachers_Pct` and `Pupil_Teacher_Ratio` - are
+school-level. One missing school record is copied to every student in that school when the
+files are joined, which inflates the student-level percentages. The table below shows the
+actual school-level counts, where the denominator is 100 schools, not 2,500 students.
+
+```{r school-level-missing}
+# check missing values directly on the 100 schools
+gess_school %>%
+  summarise(across(everything(), ~ sum(is.na(.x)))) %>%
+  pivot_longer(everything(),
+               names_to  = "Variable",
+               values_to = "Schools_Missing") %>%
+  filter(Schools_Missing > 0) %>%
+  arrange(desc(Schools_Missing)) %>%
+  knitr::kable(caption = "Table 4: Missing values on the 100 schools (school-level denominator)")
+```
+
+### Treatment decisions
+
+**Dropout_Risk_Score: 100 students (4.0%), Option (i): listwise deletion.**
+This is the primary outcome. We do not impute the variable we are trying to predict because
+that would create artificial outcome values and could bias the regression results. These rows
+are therefore removed when the final analysis dataset is created in Task 2.
+
+**Attendance_Rate_Pct (5.0%), Study_Hours_Day (4.0%), Teacher_Support_Score (3.0%):
+Option (iii), group-level median imputation by Form_Level.**
+These are continuous predictors with relatively low levels of missingness. The median is used
+because it is less affected by extreme values than the mean. Imputing within `Form_Level`
+also preserves differences that may exist between students at different stages of schooling.
+
+**HH_Income_Band (5.0%) and Parent_Occupation (4.0%): Option (ii), mode imputation.**
+These are categorical variables with relatively low levels of missingness. The mode, which is
+the most frequently occurring category, is used because it is the categorical counterpart to
+a simple central-value imputation. With only a small proportion of values missing, this
+approach retains the observations without introducing a new category that is not present in
+the original data.
+
+**Mathematics_Score and Science_Score (4.0% each): Option (iv), retain as NA.**
+These subject scores feed directly into `Overall_Average`, which defines `Passed_Core`.
+Imputing them would affect the secondary outcome we are analysing. The dropout models do not
+use the four subject scores as predictors, so we retain the missing values and use `na.rm = TRUE`
+when a summary requires complete observations.
+
+**Pupil_Teacher_Ratio (4 schools), Qualified_Teachers_Pct (5 schools),
+Annual_Budget_GHS (6 schools): Option (iii), group-level median imputation by School_Level.**
+These are school-level continuous variables. JHS, SHS and Combined schools may differ in
+staffing and funding, so a single overall median could mix distinct groups. We therefore impute
+within `School_Level` on the school file before joining it back to the student data.
+
+**BECE_Pass_Rate_Pct (5 schools) and WASSCE_Pass_Rate_Pct (8 schools): Option (iv),
+retain as NA.**
+These exam pass rates are not required as main predictors in the dropout analysis. Retaining
+them as `NA` avoids unnecessary imputation, and `na.rm = TRUE` can be used if they are
+summarised later.
+
+### Implementing the treatment
+
+We impute the student file and school file separately, then re-join the cleaned files to
+create `gess_working`.
+
+```{r impute-student-file}
+# helper function: return the most frequent non-missing category
+get_mode <- function(x) {
+  values <- x[!is.na(x)]
+  names(sort(table(values), decreasing = TRUE))[1]
+}
+
+# impute the student file
+gess_student_imputed <- gess_student %>%
+  # use mode imputation for categorical variables with low missingness
+  mutate(
+    HH_Income_Band = replace_na(HH_Income_Band, get_mode(HH_Income_Band)),
+    Parent_Occupation = replace_na(Parent_Occupation, get_mode(Parent_Occupation))
+  ) %>%
+  # fill continuous predictors with the group median within each Form_Level
+  group_by(Form_Level) %>%
+  mutate(
+    Attendance_Rate_Pct   = replace_na(Attendance_Rate_Pct,
+                                       median(Attendance_Rate_Pct,   na.rm = TRUE)),
+    Study_Hours_Day       = replace_na(Study_Hours_Day,
+                                       median(Study_Hours_Day,       na.rm = TRUE)),
+    Teacher_Support_Score = replace_na(Teacher_Support_Score,
+                                       median(Teacher_Support_Score, na.rm = TRUE))
+  ) %>%
+  ungroup()
+```
+
+```{r impute-school-file}
+# impute the school file
+gess_school_imputed <- gess_school %>%
+  # fill school-level numeric variables with the group median within each School_Level
+  group_by(School_Level) %>%
+  mutate(
+    Pupil_Teacher_Ratio    = replace_na(Pupil_Teacher_Ratio,
+                                        median(Pupil_Teacher_Ratio,    na.rm = TRUE)),
+    Qualified_Teachers_Pct = replace_na(Qualified_Teachers_Pct,
+                                        median(Qualified_Teachers_Pct, na.rm = TRUE)),
+    Annual_Budget_GHS      = replace_na(Annual_Budget_GHS,
+                                        median(Annual_Budget_GHS,      na.rm = TRUE))
+  ) %>%
+  ungroup()
+```
+
+```{r create-working-dataset}
+# re-join the imputed files to create the working dataset for the rest of the project
+gess_working <- gess_student_imputed %>%
+  left_join(gess_school_imputed, by = "School_ID", suffix = c("_student", "_school")) %>%
+  rename(
+    student_region = Region_student,
+    school_region  = Region_school
+  ) %>%
+  mutate(Region = school_region)
+
+dim(gess_working)
+```
+
+### Before and after comparison
+
+```{r missing-after}
+# count missing values in the working dataset
+missing_after <- tibble(
+  Variable = names(gess_working),
+  After    = colSums(is.na(gess_working))
+)
+
+# build the before-and-after table for variables that had missing values
+missing_comparison <- missing_before %>%
+  filter(Missing > 0) %>%
+  rename(Before = Missing, Before_Pct = Percentage) %>%
+  left_join(missing_after, by = "Variable") %>%
+  mutate(Replaced = Before - After) %>%
+  select(Variable, Before, Before_Pct, After, Replaced)
+
+missing_comparison %>%
+  knitr::kable(caption = "Table 5: Missing values before and after treatment")
+```
+
+```{r total-replaced}
+# total number of cells that were filled
+total_replaced <- sum(missing_comparison$Replaced, na.rm = TRUE)
+```
+
+The treatment filled `r total_replaced` missing cells without removing any student rows at
+this stage. `Attendance_Rate_Pct`, `Study_Hours_Day`, `Teacher_Support_Score`,
+`Pupil_Teacher_Ratio`, `Qualified_Teachers_Pct` and `Annual_Budget_GHS` were filled with
+group medians. `HH_Income_Band` and `Parent_Occupation` were filled using mode imputation,
+while `Mathematics_Score`, `Science_Score`, `BECE_Pass_Rate_Pct` and
+`WASSCE_Pass_Rate_Pct` are deliberately retained as NA. The 100 students with a missing
+`Dropout_Risk_Score` will be removed in Task 2 when we set up the final analysis dataset.
+
+The working dataset `gess_working` has `r nrow(gess_working)` rows and
+`r ncol(gess_working)` columns and is ready for Task 2.
+
+# 3. Task 2: Data Wrangling
+
+## 3.1 Variable Selection (Task 2a)
+
+### Analytical question
+
+What student, household, and school characteristics are associated with dropout risk and
+core-subject performance among GESS students?
+
+### Outcome variables
+
+The **primary outcome** is `Dropout_Risk_Score` - a continuous score from 0 to 10, where a
+higher score means the student is more at risk of dropping out. We use this for the regression
+analysis in Task 5 (Pathway A).
+
+The **secondary outcome** is `Passed_Core` - a binary Yes/No variable for whether the student
+passed the core subjects (i.e. `Overall_Average >= 50`). We use this in the chi-square test
+in Task 4 and the classification model in Task 6.
+
+We do not use `Perf_Band` or `Overall_Average` as modelling targets. `Perf_Band` is just a
+bucketed version of `Overall_Average`, and `Passed_Core` is a direct recode of it. Using
+them together would be circular.
+
+### Predictor variables
+
+We use the predictors below across all tasks. We need at least three continuous and three
+categorical predictors.
+
+**Continuous predictors:**
+
+- `Attendance_Rate_Pct` - attendance rate; low attendance is a direct risk factor for dropping out
+- `Study_Hours_Day` - daily study hours outside school; reflects academic effort
+- `Teacher_Support_Score` - student's rating of how supported they feel by teachers (1–10)
+- `Resource_Index` - a composite measure of school resources (0–10)
+- `Pupil_Teacher_Ratio` - students per teacher; higher values mean less individual attention
+
+**Categorical predictors:**
+
+- `HH_Income_Band` - household income group (Low / Mid / High)
+- `Parent_Education` - highest education level of the parent or guardian
+- `School_Level` - whether the school is JHS, SHS or Combined
+- `School_Type` - Public, Private or Mission
+- `Sex` - Male or Female
+- `Internet_Access_School` - whether the student has internet access at school (Yes/No)
+- `Residence_Type` - Day student or Boarder
+
+---
+
+## 3.2 Reshaping the Data (Task 2b)
+
+The four subject scores - `English_Score`, `Mathematics_Score`, `Science_Score` and
+`Social_Studies_Score` - are currently stored as four separate columns. In Task 3 we want
+to make a faceted box plot that shows the score distribution for each subject side by side,
+with separate panels for students who passed and those who did not. That kind of plot needs
+`Subject` as a column (not as four separate column names) and `Score` as another column.
+We use `pivot_longer()` to reshape the four score columns into rows, creating one row per
+student per subject.
+
+We create this as a separate object called `subject_scores_long`. The main analysis dataset stays wide and retains these score columns so that the Task 3 visualisation is derived from the cleaned analysis sample.
+
+---
+
+## 3.3 String Manipulation (Task 2c)
+
+### Operation 1: Extract a numeric student number from Student_ID (str_extract)
+
+`Student_ID` values look like `"GESS-S0001"`. We use `str_extract()` to pull out just the digits and convert them to an integer. The resulting `Student_Num` provides a simpler numeric identifier that can be useful for ordering, labelling and numerical operations in output tables.
+
+```{r string-op1-before}
+# what Student_ID looks like before
+gess_working %>%
+  select(Student_ID) %>%
+  slice_head(n = 5)
+```
+
+```{r string-op1-apply}
+# extract the number from Student_ID and convert to integer
+gess_working <- gess_working %>%
+  mutate(Student_Num = as.integer(str_extract(Student_ID, "\\d+")))
+```
+
+```{r string-op1-after}
+# check the result
+gess_working %>%
+  select(Student_ID, Student_Num) %>%
+  slice_head(n = 5)
+```
+
+### Operation 2: Shorten the HH_Income_Band labels (str_remove)
+
+`HH_Income_Band` contains labels like `"Low (<GHS 800)"`, `"Mid (GHS 800-2000)"` and
+`"High (>GHS 2000)"`. These long labels will take up too much space on plot axes. We use
+`str_remove()` to strip the part in brackets, leaving just `"Low"`, `"Mid"` and `"High"`.
+After mode imputation, all values in this variable follow the original category labels, so the same string operation can be applied consistently.
+
+```{r string-op2-before}
+# what HH_Income_Band looks like before
+gess_working %>%
+  count(HH_Income_Band)
+```
+
+```{r string-op2-apply}
+# remove the bracketed GHS amounts
+gess_working <- gess_working %>%
+  mutate(HH_Income_Band = str_remove(HH_Income_Band, "\\s*\\(.*\\)"))
+```
+
+```{r string-op2-after}
+# check the result
+gess_working %>%
+  count(HH_Income_Band)
+```
+
+---
+
+## 3.4 Filtering, Selecting, and Mutating (Task 2d)
+
+### Filter
+
+In Task 1 we decided to apply listwise deletion to `Dropout_Risk_Score` because it is the
+primary outcome - filling in the variable we are trying to predict would manufacture the
+signal we are then modelling. Here we apply that decision and remove the 100 students with a
+missing primary outcome.
+
+```{r check-missing-outcome}
+# how many students have a missing Dropout_Risk_Score?
+sum(is.na(gess_working$Dropout_Risk_Score))
+```
+
+```{r filter-missing-outcome}
+# remove those students
+n_before_filter <- nrow(gess_working)
+
+dat_clean <- gess_working %>%
+  filter(!is.na(Dropout_Risk_Score))
+
+n_removed <- n_before_filter - nrow(dat_clean)
+
+cat("Rows before filter:", n_before_filter, "\n")
+cat("Rows removed:      ", n_removed, "\n")
+cat("Rows remaining:    ", nrow(dat_clean), "\n")
+```
+
+```{r outcome-missing-before-after}
+# explicitly show the before/after missing count for the primary outcome
+outcome_missing_check <- tibble(
+  Stage = c("Before listwise deletion", "After listwise deletion"),
+  Missing_Dropout_Risk_Score = c(
+    sum(is.na(gess_working$Dropout_Risk_Score)),
+    sum(is.na(dat_clean$Dropout_Risk_Score))
+  )
+)
+
+outcome_missing_check %>%
+  knitr::kable(caption = "Table 6: Missing primary-outcome values before and after listwise deletion.")
+```
+
+We removed `r n_removed` students with a missing `Dropout_Risk_Score`. The working dataset
+now has `r nrow(dat_clean)` students.
+
+### Select
+
+The joined dataset currently has `r ncol(gess_working)` columns. Many of them are not
+needed for the analysis - for example, the school's separate geographic coordinates (`Latitude_S`, `Longitude_S`),
+`student_region` (the conflicting region from the student file that we decided not to use
+in Task 1), the individual subject scores (which we cannot use as predictors for `Passed_Core`
+without leakage), `Overall_Average` (same leakage problem), and school-level exam pass rates
+that we kept as NA. We keep the variables directly relevant to the analytical question, including the student coordinates needed for the geographic analysis and the subject scores needed for the required long-format visualisation.
+
+```{r select-variables}
+# keep only the variables needed for the analysis
+dat_clean <- dat_clean %>%
+  select(
+    # identifiers and geographic coordinates
+    Student_ID, Student_Num, School_ID, Latitude, Longitude,
+    # student demographics
+    Sex, Age, Form_Level, Residence_Type,
+    # household background
+    Parent_Education, Parent_Occupation, HH_Income_Band, HH_Size, Orphan_Status,
+    # student engagement
+    Attendance_Rate_Pct, Study_Hours_Day, Has_Textbooks_All,
+    Internet_Access_School, Bullying_Experienced,
+    # school quality
+    Teacher_Support_Score,
+    # school context
+    School_Level, School_Type, Urban_Rural, Region,
+    # school resources
+    Resource_Index, Pupil_Teacher_Ratio,
+    # subject scores retained for Task 3 visualisation only
+    English_Score, Mathematics_Score, Science_Score, Social_Studies_Score,
+    # outcomes
+    Passed_Core, Dropout_Risk_Score, Perf_Band
+  )
+
+# check dimensions
+dim(dat_clean)
+```
+
+We kept `r ncol(dat_clean)` variables - more than the 15 required.
+
+### Mutate
+
+**Operation 1 - New continuous variable: Attendance_Gap**
+
+We create `Attendance_Gap` as `100 - Attendance_Rate_Pct`. This is the percentage of school
+days a student missed. It re-expresses attendance as absence rather than presence, which
+maps more directly to dropout risk. A student who attended 70% of days missed 30%, and that
+30% is what puts them at risk. Because `Attendance_Gap` is calculated directly from `Attendance_Rate_Pct`, the two variables contain the same information and should not be used together as regression predictors. `Attendance_Gap` is therefore created for interpretation and visualisation rather than alongside `Attendance_Rate_Pct` in the regression model.
+
+**Operation 2 - New categorical variable: Risk_Level (case_when)**
+
+We split `Dropout_Risk_Score` into three named groups using `case_when()`. In this dataset
+the score only goes up to 6.9 (not the full 0–10 described in the codebook), so we use
+thresholds of 2 and 4 that give three reasonably sized groups. `Risk_Level` is easier to
+read in bar charts and cross-tabulations in Task 3 and Task 4 than the raw score.
+
+**Operation 3 - Factor ordering**
+
+We convert all categorical columns to factors with the correct level order. This matters
+because R plots categories in level order, and regression models pick the first level as
+the baseline. For variables with a natural progression (like `Perf_Band` and
+`HH_Income_Band`) the order goes from lowest to highest so that any effect we estimate
+reflects an increase.
+
+```{r mutate-operations}
+dat_clean <- dat_clean %>%
+  mutate(
+
+    # --- operation 1: new continuous - percentage of school days missed ---
+    Attendance_Gap = 100 - Attendance_Rate_Pct,
+
+    # --- operation 2: new categorical - three-group dropout risk level ---
+    # Note: the score only reaches 6.9 in this dataset, not the full 0-10 range.
+    # Thresholds of 2 and 4 give three workable groups for visualisation.
+    Risk_Level = case_when(
+      Dropout_Risk_Score <= 2.0 ~ "Low",
+      Dropout_Risk_Score <= 4.0 ~ "Medium",
+      Dropout_Risk_Score >  4.0 ~ "High"
+    ),
+    Risk_Level = factor(Risk_Level, levels = c("Low", "Medium", "High")),
+
+    # --- operation 3: factor ordering and categorical cleanup ---
+    Perf_Band = factor(Perf_Band,
+                       levels = c("Below Average", "Average", "Good", "Excellent")),
+    Parent_Education = factor(Parent_Education,
+                              levels = c("None", "Primary", "JHS", "SHS", "Tertiary"),
+                              ordered = TRUE),
+    HH_Income_Band = factor(HH_Income_Band,
+                            levels = c("Low", "Mid", "High"),
+                            ordered = TRUE),
+    Form_Level = factor(Form_Level,
+                        levels = c("JHS 1-2", "JHS 3-SHS 1", "SHS 2-3", "SHS 3+"),
+                        ordered = TRUE),
+    Bullying_Experienced = factor(Bullying_Experienced,
+                                  levels = c("Never", "Sometimes", "Often"),
+                                  ordered = TRUE),
+    School_Level = factor(School_Level,
+                          levels = c("JHS", "SHS", "Combined")),
+    School_Type = factor(School_Type,
+                         levels = c("Public", "Private", "Mission")),
+    Urban_Rural = factor(Urban_Rural,
+                         levels = c("Rural", "Peri-urban", "Urban"),
+                         ordered = TRUE),
+    Parent_Occupation = factor(Parent_Occupation),
+    Orphan_Status = factor(Orphan_Status),
+    Region = factor(Region),
+    Passed_Core = factor(Passed_Core, levels = c("No", "Yes")),
+    Sex = factor(Sex, levels = c("Female", "Male")),
+    Residence_Type = factor(Residence_Type, levels = c("Day", "Boarding")),
+    Internet_Access_School = factor(Internet_Access_School, levels = c("No", "Yes")),
+    Has_Textbooks_All = factor(Has_Textbooks_All, levels = c("No", "Yes"))
+  )
+```
+
+### Long-format subject scores for Task 3
+
+The final cleaned dataset now contains the four subject scores required for the Task 3 visualisation. We therefore reshape these columns after `dat_clean` has been fully created and cleaned.
+
+```{r create-scores-long}
+# reshape from wide (four score columns) to long (one row per student per subject)
+subject_scores_long <- dat_clean %>%
+  select(Student_ID, School_Level, Sex, Form_Level, Passed_Core,
+         English_Score, Mathematics_Score,
+         Science_Score, Social_Studies_Score) %>%
+  pivot_longer(
+    cols      = c(English_Score, Mathematics_Score,
+                  Science_Score, Social_Studies_Score),
+    names_to  = "Subject",
+    values_to = "Score"
+  ) %>%
+  mutate(
+    # clean up the subject name - remove "_Score" and replace underscore with a space
+    Subject = str_remove(Subject, "_Score"),
+    Subject = str_replace(Subject, "_", " ")
+  )
+
+# check the dimensions
+dim(subject_scores_long)
+```
+
+```{r scores-long-preview}
+# show the first 10 rows
+subject_scores_long %>%
+  slice_head(n = 10) %>%
+  knitr::kable(caption = "Table 7: First 10 rows of subject_scores_long (long-format subject scores for Task 3 visualisation)")
+```
+
+The reshaped dataset has `r nrow(subject_scores_long)` rows four rows per student, one for
+each subject. We will use this object in Task 3 to draw the faceted score comparison plot.
+Some scores are NA (Mathematics and Science had 4% missingness which we kept in Task 1) -
+those will be handled with `na.rm = TRUE` in Task 3.
+
+```{r check-risk-level}
+# check the Risk_Level distribution
+dat_clean %>%
+  count(Risk_Level)
+```
+
+```{r check-attendance-gap}
+# quick check of the new Attendance_Gap variable
+summary(dat_clean$Attendance_Gap)
+```
+
+---
+
+## 3.5 Final Wrangled Dataset (Task 2e)
+
+```{r glimpse-dat-clean}
+# check the final dataset
+glimpse(dat_clean)
+```
+
+```{r dat-clean-preview}
+# show the first 10 rows with a selection of key columns
+dat_clean %>%
+  slice_head(n = 10) %>%
+  select(
+    Student_Num, Sex, Age, Form_Level,
+    HH_Income_Band, Attendance_Rate_Pct, Attendance_Gap,
+    Teacher_Support_Score, School_Level,
+    Resource_Index, Risk_Level, Passed_Core, Dropout_Risk_Score
+  ) %>%
+  flextable() %>%
+  set_caption("Table 8: First 10 rows of dat_clean (selected columns for readability)") %>%
+  autofit()
+```
+
+The wrangling pipeline in Task 2 turned `gess_working` into `dat_clean`, a dataset with
+`r nrow(dat_clean)` student rows and `r ncol(dat_clean)` columns that is ready for the
+analyses in Tasks 3 to 6. The 100 students with a missing primary outcome
+(`Dropout_Risk_Score`) were removed by listwise deletion, as planned in Task 1. We narrowed
+the dataset from 52 columns down to `r ncol(dat_clean)` by keeping only the variables
+directly relevant to the analytical question, while retaining the subject scores and geographic coordinates for the required Task 3 visualisations. The subject scores are retained for visualisation only and are not used as predictors of `Passed_Core`, avoiding leakage. Two string operations prepared the data for display: `str_extract()` pulled a
+numeric sort key out of the character student IDs, and `str_remove()` shortened the verbose
+`HH_Income_Band` labels so they fit cleanly on plot axes. The `mutate()` step added
+`Attendance_Gap`, which re-expresses attendance as the percentage of school days missed -
+a framing that maps more naturally to dropout risk - and created `Risk_Level`, a
+three-category version of the dropout score (Low, Medium, High) for use in bar charts and
+cross-tabulations in Tasks 3 and 4. Factor levels were explicitly set for categorical variables where ordering or a clear baseline is meaningful, so plots display categories consistently and regression models in Task 5 use the intended reference levels. The four subject scores were also reshaped into `subject_scores_long`
+(a long-format object with one row per student per subject) for the Task 3 faceted
+visualisation. `dat_clean` and `subject_scores_long` are the two objects used in all
+remaining tasks.
+
+# 4. Task 3: Exploratory Data Analysis and Visualisation
+
+This task explores `dat_clean` (and the long-format `subject_scores_long`
+created in Task 2b) through five plots, all built with `ggplot2`. Our primary
+outcome throughout is `Dropout_Risk_Score`. The five plots move from the shape
+of that outcome (Plot 1), to how it varies with a household predictor (Plot 2),
+to the structure of two continuous predictors (Plot 3), to the subject-score
+comparison using the reshaped long data (Plot 4), and finally to its spatial
+pattern across Ghana (Plot 5). Each plot has a written justification before it
+and a short interpretation after it, as the brief requires. All five plots,
+including both maps, are based on `dat_clean`; the student coordinates and
+region information were retained specifically for the geographic analysis.
+
+## 4.1 Plot 1 - Distribution of the primary outcome
+
+**Justification.** Before we model dropout risk we need to know the shape of its
+distribution - where it is centred, how spread out it is, and whether it is
+skewed or bounded. That shape decides whether a linear model on the raw score
+(Task 5, Pathway A) is reasonable. We plot the full distribution of
+`Dropout_Risk_Score` with a density curve and mark the mean and median.
+
+```{r plot1-distribution, fig.cap = "Figure 1: Distribution of Dropout_Risk_Score with a density overlay. The dashed line is the mean and the dotted line is the median."}
+mean_dropout <- mean(dat_clean$Dropout_Risk_Score, na.rm = TRUE)
+med_dropout  <- median(dat_clean$Dropout_Risk_Score, na.rm = TRUE)
+
+ggplot(dat_clean, aes(x = Dropout_Risk_Score)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 0.4,
+                 fill = "#3E6D9C", colour = "white", alpha = 0.85) +
+  geom_density(colour = "#B2182B", linewidth = 1) +
+  geom_vline(xintercept = mean_dropout, colour = "#B2182B",
+             linetype = "dashed", linewidth = 0.8) +
+  geom_vline(xintercept = med_dropout, colour = "#1B7837",
+             linetype = "dotted", linewidth = 0.8) +
+  annotate("text", x = mean_dropout + 0.15, y = Inf, vjust = 2, hjust = 0,
+           label = paste0("Mean = ", round(mean_dropout, 2)), colour = "#B2182B") +
+  annotate("text", x = med_dropout - 0.15, y = Inf, vjust = 4, hjust = 1,
+           label = paste0("Median = ", round(med_dropout, 2)), colour = "#1B7837") +
+  labs(
+    title    = "Distribution of student dropout risk score",
+    subtitle = "GESS student sample; density overlay with mean and median",
+    x        = "Dropout risk score (0 = low risk, 10 = high risk)",
+    y        = "Density"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank())
+```
+
+**Interpretation.** The scores form a single, roughly symmetric mound centred
+near 2.6, with the mean and median almost on top of each other, so the outcome
+is not badly skewed. Although the codebook scale runs to 10, no student in the
+cleaned data exceeds about 6.9, which is why we capped `Risk_Level` at that range
+in Task 2. Most students sit in a moderate band (roughly 1.7 to 3.5) with thin
+tails at both ends. Because the outcome is continuous and close to symmetric, a
+linear regression on the raw score in Task 5 is defensible without transforming
+it first.
+
+## 4.2 Plot 2 - Dropout risk by household income band
+
+**Justification.** A central idea in the education literature is that household
+resources shape a child's chance of staying in school. We test this directly by
+comparing `Dropout_Risk_Score` across `HH_Income_Band`. We order the boxes by
+median and overlay the group means so both the typical value and the average are
+visible. Missing household-income values were handled by the mode-imputation rule specified in Task 1, so the plot contains only the defined Low, Mid and High categories.
+
+```{r plot2-income-box, fig.cap = "Figure 2: Dropout risk score by household income band. Boxes are ordered by median; white diamonds mark group means; points are jittered."}
+ggplot(dat_clean,
+       aes(x = fct_reorder(HH_Income_Band, Dropout_Risk_Score, .fun = median),
+           y = Dropout_Risk_Score, fill = HH_Income_Band)) +
+  geom_boxplot(width = 0.55, outlier.shape = NA, alpha = 0.75) +
+  geom_jitter(width = 0.15, alpha = 0.10, size = 0.6) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+               fill = "white", colour = "black") +
+  scale_fill_brewer(palette = "Blues", guide = "none") +
+  labs(
+    title    = "Dropout risk by household income band",
+    subtitle = "Boxes ordered by median; white diamonds = group means",
+    x        = "Household income band",
+    y        = "Dropout risk score"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation.** There is a socioeconomic gradient: Low-income students have the
+highest median and mean dropout risk (about 2.85), High-income students have the
+lowest (about 2.36), and Mid-income students sit between them (about 2.46).
+The pattern is monotonic, although the three distributions overlap substantially.
+Income therefore shifts the average level of risk rather than cleanly separating
+students, so it is more useful as one predictor among several in Task 5.
+
+## 4.3 Plot 3 - Two continuous predictors coloured by risk level
+
+**Justification.** The brief asks for a scatterplot of two continuous predictors
+coloured by the primary outcome or a categorical predictor, with a smoothed line
+per group. We place `Attendance_Rate_Pct` on the x-axis and `Teacher_Support_Score`
+on the y-axis because both are continuous predictors retained for the regression
+model. We colour the observations by `School_Level`, a separate categorical
+predictor, and fit a linear smoother within each level to assess directionality,
+linearity and whether the school-level groups separate meaningfully.
+
+```{r plot3-scatter, fig.cap = "Figure 3: Attendance rate versus teacher support score, coloured by school level, with a linear fit (95% CI) per group."}
+plot3_summary <- dat_clean %>%
+  group_by(School_Level) %>%
+  summarise(
+    mean_attendance = mean(Attendance_Rate_Pct, na.rm = TRUE),
+    mean_support = mean(Teacher_Support_Score, na.rm = TRUE),
+    cor_attendance_support = cor(Attendance_Rate_Pct, Teacher_Support_Score, use = "complete.obs"),
+    .groups = "drop"
+  )
+
+ggplot(dat_clean,
+       aes(x = Attendance_Rate_Pct, y = Teacher_Support_Score, colour = School_Level)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 1) +
+  scale_colour_viridis_d(option = "C", end = 0.9, name = "School level") +
+  labs(
+    title    = "Attendance and teacher support by school level",
+    subtitle = "Each point is a student; lines are linear fits within school level",
+    x        = "Attendance rate (%)",
+    y        = "Teacher support score (1-10)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation.** The fitted lines provide a direct check of whether the relationship between attendance and teacher support is similar across JHS, SHS and Combined schools. The group means and within-group correlations in `plot3_summary` show how the location and direction of the relationship vary across school levels without treating school level itself as continuous. Considerable overlap of the point clouds would indicate weak separation, whereas clearly displaced clouds or slopes would suggest stronger school-level differences. This plot is descriptive: it shows association between two predictors and group structure, not a causal effect of attendance or teacher support.
+
+## 4.4 Plot 4 - Subject score distributions using the reshaped long data
+
+**Justification.** Task 2b reshaped the four subject scores into
+`subject_scores_long`, with one row per student per subject, specifically for a
+comparison plot. We use it here as a ridge plot, with `Passed_Core` represented by the fill colour, to
+show the full score distribution for each subject and to see how those
+distributions differ between students who passed core subjects and those who did
+not. This is exactly the downstream use we justified when we created the long
+object, so the reshape earns its place.
+
+```{r plot4-ridges, fig.cap = "Figure 4: Distribution of the four subject scores, split by whether the student passed core subjects. Built from the long-format subject_scores_long object created in Task 2b.", fig.height = 6}
+subject_scores_long %>%
+  filter(!is.na(Score), !is.na(Passed_Core)) %>%
+  ggplot(aes(x = Score, y = Subject, fill = Passed_Core)) +
+  ggridges::geom_density_ridges(alpha = 0.6, scale = 1.1,
+                                colour = "white", quantile_lines = TRUE,
+                                quantiles = 2) +
+  scale_fill_manual(values = c("No" = "#D6604D", "Yes" = "#4393C3"),
+                    name = "Passed core") +
+  labs(
+    title    = "Subject score distributions by core-subject outcome",
+    subtitle = "Long-format subject scores (Task 2b); vertical line marks each median",
+    x        = "Score (0-100)",
+    y        = "Subject"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation.** For every subject the two ridges are cleanly offset: students
+who passed core subjects sit well to the right of those who did not, with median
+scores around the high 60s for passers versus around 40 for non-passers. The gap
+is widest for Mathematics - its "No" ridge is the lowest of the four (median near
+39) - which flags maths as the subject most associated with failing the core
+threshold. English and Social Studies distributions are the strongest overall.
+The consistent separation across all four subjects confirms that `Passed_Core`
+reflects broad performance rather than a weakness in any single subject, which is
+why we treat it as a genuine secondary outcome but never predict it from the
+scores that define it.
+
+## 4.5 Plot 5 - Geospatial maps
+
+**Justification.** The regional differences hinted at above are best shown on a
+map. We first build a static choropleth of mean dropout risk per region using the
+official GADM boundaries, then an interactive `leaflet` map of individual
+students so the reader can inspect within-region spread and click for detail.
+Both maps use the geographic coordinates and region information retained in `dat_clean`, so the static and interactive views are based on the same final analysis sample.
+
+### 4.5.1 Plot 5a - Static choropleth
+
+```{r plot5a-choropleth, fig.cap = "Figure 5: Regional mean student dropout risk across Ghana. GADM level-1 boundaries are shaded by the regional mean dropout-risk score and labelled with region names.", fig.width = 7, fig.height = 8}
+region_summary <- dat_clean %>%
+  group_by(Region) %>%
+  summarise(mean_dropout = mean(Dropout_Risk_Score, na.rm = TRUE),
+            n_students   = n(), .groups = "drop")
+
+gha_vect <- geodata::gadm(country = "GHA", level = 1, path = tempdir())
+gha_sf   <- sf::st_as_sf(gha_vect) %>%
+  mutate(Region = str_squish(NAME_1))
+
+unmatched_regions <- setdiff(as.character(region_summary$Region), as.character(gha_sf$Region))
+if (length(unmatched_regions) > 0) {
+  stop("Unmatched Ghana region names: ", paste(unmatched_regions, collapse = ", "))
+}
+
+gha_map <- gha_sf %>%
+  left_join(region_summary, by = "Region")
+
+ggplot(gha_map) +
+  geom_sf(aes(fill = mean_dropout), colour = "grey30", linewidth = 0.2) +
+  geom_sf_text(aes(label = Region), size = 2.4, colour = "black") +
+  scale_fill_viridis_c(option = "magma", direction = -1,
+                       name = "Mean dropout risk") +
+  labs(
+    title    = "Mean student dropout risk across Ghana's regions",
+    subtitle = "Regional averages from the GESS student sample",
+    caption  = "Boundaries: GADM level 1"
+  ) +
+  theme_void(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+### 4.5.2 Plot 5b - Interactive map (leaflet)
+
+```{r plot5b-leaflet, fig.cap = "Figure 6: Individual students coloured by dropout risk. The leaflet map uses individual student coordinates and popups showing region, dropout risk and risk level.", fig.width = 7, fig.height = 6}
+set.seed(602)
+
+leaflet_df <- dat_clean %>%
+  select(Student_ID, Latitude, Longitude, Region, Dropout_Risk_Score, Risk_Level) %>%
+  filter(!is.na(Latitude), !is.na(Longitude)) %>%
+  slice_sample(n = min(800, nrow(.)))
+
+pal <- leaflet::colorNumeric(palette = "magma",
+                             domain = leaflet_df$Dropout_Risk_Score,
+                             reverse = TRUE)
+
+leaflet::leaflet(leaflet_df) %>%
+  leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) %>%
+  leaflet::addCircleMarkers(
+    lng = ~Longitude, lat = ~Latitude,
+    radius = 4, stroke = FALSE, fillOpacity = 0.7,
+    color = ~pal(Dropout_Risk_Score),
+    popup = ~paste0("<b>Region:</b> ", Region,
+                    "<br><b>Dropout risk:</b> ", round(Dropout_Risk_Score, 1),
+                    "<br><b>Risk level:</b> ", as.character(Risk_Level))
+  ) %>%
+  leaflet::addLegend("bottomright", pal = pal, values = ~Dropout_Risk_Score,
+                     title = "Dropout risk", opacity = 0.8)
+```
+
+The interactive `leaflet` version is rendered when the document is viewed as HTML; the
+static map above provides the corresponding visual for the Word submission.
+
+**Interpretation (both maps).** Regional mean dropout risk varies within a relatively narrow range, so no single region appears uniformly high-risk in this sample. The choropleth provides the broad spatial comparison, while the individual-level leaflet view shows substantial within-region variation between students and schools. The two maps therefore suggest that geographic averages are useful for description and broad targeting, but they should not be treated as sufficient explanations of individual dropout risk. This supports the multivariable approach in Task 5, which combines attendance, household and school characteristics rather than relying on region alone.
+
+# 5. Task 4: Descriptive Statistics and Inferential Tests
+
+Task 4 does two things with the same analysis sample (`dat_clean`,
+`r nrow(dat_clean)` students). First we produce a publication-style Table 1
+using `gtsummary::tbl_summary()`. Then we run three pre-specified tests: an
+independent-samples t-test, a one-way ANOVA with Tukey HSD, and a chi-square
+test of independence. We do not put `Overall_Average` in the table or in any
+test of `Passed_Core`, because Task 1 already showed that `Passed_Core` is
+exactly `Overall_Average >= 50`. With n = `r nrow(dat_clean)`, small differences
+will reach p < .05. Every conclusion below separates that fact from the size of
+the effect.
+
+```{r task4-packages}
+# packages used only in Task 4
+library(gtsummary)
+library(broom)
+library(effectsize)
+library(car)
+```
+
+## 5.1 Descriptive summary table (Task 4a)
+
+**Why this table, and why this grouping.** `tbl_summary()` needs a categorical
+`by` variable. Our primary outcome, `Dropout_Risk_Score`, is continuous, so we
+stratify by the secondary outcome `Passed_Core` the grouping already reserved
+for Task 4 in the introduction. The table then shows how the primary outcome and
+the predictors we will carry into Tasks 5 and 6 sit among students who passed
+core subjects versus those who did not. We include six continuous variables
+(`Dropout_Risk_Score`, `Attendance_Rate_Pct`, `Study_Hours_Day`,
+`Teacher_Support_Score`, `Age`, `Resource_Index`) and five categorical ones
+(`Sex`, `Residence_Type`, `HH_Income_Band`, `School_Level`, `Urban_Rural`). That
+is more than the two-plus-two the brief requires. Continuous rows use
+`type = "continuous2"` so each variable shows both mean ± SD and median
+(Q1, Q3). `add_overall()` keeps the pooled sample visible.
+
+```{r task4-tbl-summary}
+theme_gtsummary_compact()
+
+dat_table1 <- dat_clean %>%
+  mutate(
+    Urban_Rural = factor(Urban_Rural,
+                         levels = c("Rural", "Peri-urban", "Urban"))
+  ) %>%
+  select(
+    Passed_Core,
+    Dropout_Risk_Score,
+    Attendance_Rate_Pct,
+    Study_Hours_Day,
+    Teacher_Support_Score,
+    Age,
+    Resource_Index,
+    Sex,
+    Residence_Type,
+    HH_Income_Band,
+    School_Level,
+    Urban_Rural
+  )
+
+tbl_passed <- dat_table1 %>%
+  tbl_summary(
+    by = Passed_Core,
+    label = list(
+      Dropout_Risk_Score    ~ "Dropout risk score",
+      Attendance_Rate_Pct   ~ "Attendance rate (%)",
+      Study_Hours_Day       ~ "Study hours per day",
+      Teacher_Support_Score ~ "Teacher support score",
+      Age                   ~ "Age (years)",
+      Resource_Index        ~ "School resource index",
+      Sex                   ~ "Sex",
+      Residence_Type        ~ "Residence",
+      HH_Income_Band        ~ "Household income",
+      School_Level          ~ "School level",
+      Urban_Rural           ~ "School location"
+    ),
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous()  ~ c("{mean} ± {sd}", "{median} ({p25}, {p75})"),
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(all_continuous() ~ 2),
+    missing = "ifany",
+    missing_text = "Missing"
+  ) %>%
+  add_overall() %>%
+  bold_labels() %>%
+  modify_header(
+    label ~ "**Variable**",
+    all_stat_cols() ~ "**{level}**\nN = {n}"
+  ) %>%
+  modify_footnote(
+    all_stat_cols() ~ "Mean ± SD; Median (Q1, Q3); n (%)."
+  )
+
+tbl_passed %>%
+  as_kable()
+```
+
+The analysis sample contains `r format(nrow(dat_clean), big.mark = ",")` students: `r sum(dat_clean$Passed_Core == "Yes")` (`r round(100 * mean(dat_clean$Passed_Core == "Yes"), 1)`%) passed the core subjects and `r sum(dat_clean$Passed_Core == "No")` (`r round(100 * mean(dat_clean$Passed_Core == "No"), 1)`%) did not. Students who did not pass have a mean dropout risk of `r round(mean(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "No"]), 2)` (SD `r round(sd(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "No"]), 2)`, median `r round(median(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "No"]), 2)`) compared with `r round(mean(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "Yes"]), 2)` (SD `r round(sd(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "Yes"]), 2)`, median `r round(median(dat_clean$Dropout_Risk_Score[dat_clean$Passed_Core == "Yes"]), 2)`) among those who passed. The similar mean-median pairs indicate that neither group is strongly skewed, while the comparable standard deviations suggest that the difference is not driven mainly by extreme observations. The primary outcome therefore shows a shift in typical dropout risk between the two groups, rather than a large difference in dispersion. Attendance is slightly lower among non-passers, while study hours, teacher support, age and resource index show smaller differences. The categorical variables show a clearer socioeconomic pattern: Low-income students form a larger share of the non-pass group, whereas High-income students are more represented among passers. Day students and JHS students are also somewhat more common among non-passers, while sex and school-location distributions overlap considerably. For the continuous variables, reporting both mean ± SD and median (Q1, Q3) provides complementary information on central tendency and spread and is useful for a bounded outcome. The table also makes the grouping structure transparent because each statistic is shown separately for students who passed and did not pass, with an overall column for the pooled sample. The selected variables are complete in this table because the required low-missingness predictors were imputed in Task 1 and students missing the primary outcome were removed in Task 2. Variables not required for this summary remain outside the table. These descriptive differences are associations rather than causal effects and provide the basis for the inferential tests that follow. The overall column is important because the stratified values should not be interpreted without the size and composition of the full sample. The table also makes clear that the most noticeable descriptive differences concern dropout risk, household income and residence, while several school and demographic variables show substantial overlap. Because the project uses observational survey data, these patterns identify groups that differ in the sample but do not by themselves establish why the differences occur.
+
+## 5.2 Inferential tests (Task 4b)
+
+We take one test from each of the three inferential families listed in the brief. The t-test compares the primary outcome across the two-level factor `Residence_Type`, the ANOVA compares dropout risk across the three household-income bands, and the chi-square test examines the association between `Passed_Core` and `HH_Income_Band`. Each test is preceded by its hypothesis and relevant assumption checks, and each result is tidied with `broom::tidy()`.
+
+### 5.2.1 Independent-samples t-test - dropout risk by residence
+
+**Hypothesis.** Day students have a different mean `Dropout_Risk_Score` from
+boarding students. The null is that the two means are equal. The alternative is
+two-sided. Boarding is often argued to reduce dropout through closer
+supervision, so this is a natural two-group contrast on the primary outcome.
+
+**Assumptions.** The two groups are independent (each student is either day or
+boarding, not both). For a t-test we want similar variances and residuals that
+are not wildly skewed. With n = `r nrow(dat_clean)` the central limit theorem
+carries the means even if Shapiro–Wilk rejects, which it usually will at this
+sample size. We still inspect a Q–Q plot, Levene's test, and a Wilcoxon
+rank-sum as a robustness check. Effect size is Cohen's d.
+
+```{r task4-ttest-assumptions, fig.height = 4.8, fig.cap = "Figure 7: Normal Q-Q plots of Dropout_Risk_Score by residence type. A straight line would match a normal distribution. The sample is large and only mildly skewed; Shapiro-Wilk is expected to reject."}
+ggplot(dat_clean, aes(sample = Dropout_Risk_Score)) +
+  stat_qq(colour = "#3E6D9C", alpha = 0.35, size = 1) +
+  stat_qq_line(colour = "#B2182B", linewidth = 0.8) +
+  facet_wrap(~ Residence_Type) +
+  labs(
+    title    = "Q-Q plots of dropout risk by residence",
+    subtitle = "Analysis sample; each panel is one residence type",
+    x        = "Theoretical normal quantile",
+    y        = "Observed dropout risk"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank())
+
+shapiro_day <- shapiro.test(
+  dat_clean$Dropout_Risk_Score[dat_clean$Residence_Type == "Day"]
+)
+shapiro_board <- shapiro.test(
+  dat_clean$Dropout_Risk_Score[dat_clean$Residence_Type == "Boarding"]
+)
+
+levene_res <- leveneTest(
+  Dropout_Risk_Score ~ Residence_Type,
+  data = dat_clean
+)
+levene_f   <- levene_res[["F value"]][1]
+levene_p   <- levene_res[["Pr(>F)"]][1]
+levene_df1 <- levene_res$Df[1]
+levene_df2 <- levene_res$Df[2]
+```
+
+Shapiro–Wilk rejects normality in both groups (Day: W =
+`r round(unname(shapiro_day$statistic), 3)`, p =
+`r format.pval(shapiro_day$p.value, digits = 3)`; Boarding: W =
+`r round(unname(shapiro_board$statistic), 3)`, p =
+`r format.pval(shapiro_board$p.value, digits = 3)`). That is the sample size
+doing its job: both W statistics sit above 0.98, and the Q–Q plots are close to
+linear, with only the short right tail already seen in Task 3. Levene's test
+does not reject equal variances, F(`r levene_df1`, `r levene_df2`) =
+`r round(levene_f, 2)`, p = `r format.pval(levene_p, digits = 3)`. We therefore
+use the equal-variance t-test. The Wilcoxon rank-sum test below does not assume
+normality, so it covers the Shapiro rejection.
+
+```{r task4-ttest}
+t_res <- t.test(
+  Dropout_Risk_Score ~ Residence_Type,
+  data = dat_clean,
+  var.equal = TRUE
+)
+wilcox_res <- wilcox.test(
+  Dropout_Risk_Score ~ Residence_Type,
+  data = dat_clean
+)
+d_res <- cohens_d(
+  Dropout_Risk_Score ~ Residence_Type,
+  data = dat_clean
+)
+
+t_tidy <- tidy(t_res) %>%
+  mutate(
+    Test      = "Equal-variance t-test",
+    `Cohen's d` = d_res$Cohens_d
+  ) %>%
+  select(
+    Test,
+    `Mean (Day)`      = estimate1,
+    `Mean (Boarding)` = estimate2,
+    `Mean difference` = estimate,
+    t                 = statistic,
+    df                = parameter,
+    p                 = p.value,
+    `95% CI lower`    = conf.low,
+    `95% CI upper`    = conf.high,
+    `Cohen's d`
+  )
+
+t_tidy %>%
+  knitr::kable(caption = "Table 9: Independent-samples t-test of Dropout_Risk_Score by Residence_Type, with Cohen's d. Factor order is Day, then Boarding, so the mean difference is Day minus Boarding.")
+
+tidy(wilcox_res) %>%
+  select(statistic, p.value, method, alternative) %>%
+  knitr::kable(caption = "Table 10: Wilcoxon rank-sum robustness check for the same residence contrast.")
+```
+
+Day students had higher mean dropout risk than boarding students, t(`r round(t_res$parameter)`) = `r round(abs(unname(t_res$statistic)), 2)`, p < .001, Cohen's d = `r round(d_res$Cohens_d, 2)`, with a 95% CI for the mean difference of [`r round(t_res$conf.int[1], 2)`, `r round(t_res$conf.int[2], 2)`]. The Wilcoxon rank-sum robustness check reached the same conclusion (p < .001). The effect is statistically detectable but small (d ≈ 0.27), so the residence difference should not be interpreted as a large protective effect.
+
+### 5.2.2 One-way ANOVA - dropout risk by household income
+
+**Hypothesis.** Mean `Dropout_Risk_Score` is not the same across the three income bands (Low, Mid, High). The null is that all three means are equal. This is the formal test of the income gradient already visible in Task 3 Plot 2.
+
+**Assumptions.** Independent observations, similar variances, residuals not
+badly skewed. We use Bartlett's test and Levene's test, a residual Q–Q plot,
+one-way ANOVA with Tukey HSD, η² as the effect size, and Kruskal–Wallis as a
+rank robustness check.
+
+```{r task4-anova-assumptions, fig.height = 4.6, fig.cap = "Figure 8: Normal Q-Q plot of ANOVA residuals for Dropout_Risk_Score by HH_Income_Band."}
+aov_income <- aov(
+  Dropout_Risk_Score ~ HH_Income_Band,
+  data = dat_clean
+)
+bartlett_res <- bartlett.test(
+  Dropout_Risk_Score ~ HH_Income_Band,
+  data = dat_clean
+)
+levene_inc <- leveneTest(
+  Dropout_Risk_Score ~ HH_Income_Band,
+  data = dat_clean
+)
+levene_inc_p <- levene_inc[["Pr(>F)"]][1]
+
+ggplot(data.frame(resid = residuals(aov_income)), aes(sample = resid)) +
+  stat_qq(colour = "#3E6D9C", alpha = 0.35, size = 1) +
+  stat_qq_line(colour = "#B2182B", linewidth = 0.8) +
+  labs(
+    title    = "Q-Q plot of income-band ANOVA residuals",
+    subtitle = "aov(Dropout_Risk_Score ~ HH_Income_Band)",
+    x        = "Theoretical normal quantile",
+    y        = "Residual"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank())
+```
+
+Bartlett's test does not reject equal variances, K²(`r bartlett_res$parameter`)
+= `r round(unname(bartlett_res$statistic), 2)`, p =
+`r format.pval(bartlett_res$p.value, digits = 3)`. Levene's test agrees (p =
+`r format.pval(levene_inc_p, digits = 3)`). ANOVA is reasonable on variances.
+The residual Q–Q plot again shows the short right tail, not a broken linear
+pattern.
+
+```{r task4-anova}
+aov_tidy  <- tidy(aov_income)
+eta_res   <- eta_squared(aov_income, partial = FALSE)
+tukey_res <- TukeyHSD(aov_income)
+tukey_tidy <- tidy(tukey_res)
+kw_res <- kruskal.test(
+  Dropout_Risk_Score ~ HH_Income_Band,
+  data = dat_clean
+)
+
+aov_tidy %>%
+  knitr::kable(caption = "Table 11: One-way ANOVA of Dropout_Risk_Score by HH_Income_Band.")
+
+tukey_tidy %>%
+  select(contrast, estimate, conf.low, conf.high, adj.p.value) %>%
+  knitr::kable(caption = "Table 12: Tukey HSD pairwise comparisons. adj.p.value is family-wise adjusted.")
+
+tidy(kw_res) %>%
+  knitr::kable(caption = "Table 13: Kruskal-Wallis rank robustness check for the same income contrast.")
+```
+
+Dropout risk differed across household income bands, F(`r aov_tidy$df[1]`, `r aov_tidy$df[2]`) = `r round(aov_tidy$statistic[1], 2)`, p < .001, with a small effect (η² = `r round(eta_res$Eta2, 3)`). Tukey HSD showed that Low differed from both Mid and High, while Mid and High did not differ significantly; Kruskal–Wallis reached the same overall conclusion (p < .001). Household income is therefore statistically associated with dropout risk, but it explains only a modest share of the variation.
+
+### 5.2.3 Chi-square test - passed core by household income
+
+**Hypothesis.** The distribution of `Passed_Core` is not independent of
+`HH_Income_Band`. This is a test of two categorical variables, so we use
+Pearson's chi-square with an expected-count check and Cramér's V. We still do
+not put `Overall_Average` anywhere near this table.
+
+```{r task4-chisq}
+pass_income_tab <- table(
+  dat_clean$Passed_Core,
+  dat_clean$HH_Income_Band
+)
+chi_res <- chisq.test(pass_income_tab)
+v_res   <- cramers_v(pass_income_tab, adjust = FALSE)
+v_est   <- unname(v_res$Cramers_v)
+
+observed_tbl <- as.data.frame.matrix(pass_income_tab) %>%
+  rownames_to_column("Passed_Core") %>%
+  as_tibble()
+
+expected_tbl <- as.data.frame(chi_res$expected) %>%
+  rownames_to_column("Passed_Core") %>%
+  as_tibble()
+
+observed_tbl %>%
+  knitr::kable(caption = "Table 14: Observed counts of Passed_Core by HH_Income_Band.")
+
+expected_tbl %>%
+  knitr::kable(caption = "Table 15: Expected counts under independence. The chi-square approximation needs these to be at least 5.")
+
+chi_tidy <- tidy(chi_res) %>%
+  mutate(
+    `Cramer's V`    = v_est,
+    `Min. expected` = min(chi_res$expected)
+  )
+
+chi_tidy %>%
+  knitr::kable(caption = "Table 16: Chi-square test of Passed_Core by HH_Income_Band, with Cramer's V and the smallest expected count.")
+
+fail_by_income <- dat_clean %>%
+  group_by(HH_Income_Band) %>%
+  summarise(
+    n        = n(),
+    n_fail   = sum(Passed_Core == "No"),
+    pct_fail = round(100 * mean(Passed_Core == "No"), 1),
+    .groups  = "drop"
+  )
+
+fail_by_income %>%
+  knitr::kable(caption = "Table 17: Share of students who did not pass the core, by income band.")
+```
+
+All expected counts exceed 5 (minimum `r round(min(chi_res$expected), 1)`), so the chi-square approximation is appropriate. `Passed_Core` was associated with household income, χ²(`r chi_res$parameter`, N = `r sum(pass_income_tab)`) = `r round(unname(chi_res$statistic), 2)`, p < .001, Cramér's V = `r round(v_est, 2)`, indicating a statistically significant but small association.
+
+Dropout risk is higher for day students and for the Low income band, and core failure is also more common in the Low income band. All three tests are statistically significant, but the effect sizes are small (d ≈ 0.27, η² ≈ .02, V ≈ .09). These findings support the descriptive patterns while showing why statistical significance should not be confused with a large practical effect.
+
+# 6. Task 5: Regression Analysis
+
+## Pathway choice
+
+Our primary outcome is `Dropout_Risk_Score`, a continuous variable ranging from 0 to 10.  
+Because the outcome is continuous, the project brief requires **Pathway A: Multiple Linear Regression**.  
+We therefore fit a multiple linear regression model with `lm()`, check the LINE assumptions, perform stepwise selection with `MASS::stepAIC()`, and report the final model using `gtsummary::tbl_regression()`.
+
+```{r task5-packages}
+# packages required for Task 5
+library(MASS)   # stepAIC
+library(car)    # vif 
+```
+
+
+```{r task5-full-model}
+# Full model using the predictors already justified in Task 2a
+full_model <- lm(
+  Dropout_Risk_Score ~ 
+    Attendance_Rate_Pct + 
+    Study_Hours_Day + 
+    Teacher_Support_Score + 
+    Resource_Index + 
+    Pupil_Teacher_Ratio +
+    HH_Income_Band + 
+    Residence_Type + 
+    School_Level + 
+    Sex,
+  data = dat_clean
+)
+
+summary(full_model)
+```
+```{r task5-stepaic}
+# Stepwise selection (both directions) using AIC
+step_model <- stepAIC(full_model, direction = "both", trace = FALSE)
+
+# Show the final formula and summary
+formula(step_model)
+summary(step_model)
+```
+
+```{r task5-diagnostics, fig.height = 8, fig.cap = "Figure 9: LINE diagnostic plots for the final multiple linear regression model."}
+# Augment the model so we can use ggplot2
+library(broom)
+aug <- augment(step_model)
+
+# 1. Residuals vs Fitted (linearity + homoscedasticity)
+p1 <- ggplot(aug, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.4, colour = "#3E6D9C") +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_smooth(se = FALSE, colour = "darkred", method = "loess") +
+  labs(title = "Residuals vs Fitted",
+       x = "Fitted values", y = "Residuals") +
+  theme_minimal(base_size = 12)
+
+# 2. Normal Q-Q of standardised residuals
+p2 <- ggplot(aug, aes(sample = .std.resid)) +
+  stat_qq(alpha = 0.4, colour = "#3E6D9C") +
+  stat_qq_line(colour = "darkred") +
+  labs(title = "Normal Q-Q (standardised residuals)",
+       x = "Theoretical quantiles", y = "Standardised residuals") +
+  theme_minimal(base_size = 12)
+
+# 3. Scale-Location (homoscedasticity)
+p3 <- ggplot(aug, aes(x = .fitted, y = sqrt(abs(.std.resid)))) +
+  geom_point(alpha = 0.4, colour = "#3E6D9C") +
+  geom_smooth(se = FALSE, colour = "darkred", method = "loess") +
+  labs(title = "Scale-Location",
+       x = "Fitted values", y = "√|Standardised residuals|") +
+  theme_minimal(base_size = 12)
+
+# 4. Residuals vs Leverage (influential points)
+p4 <- ggplot(aug, aes(x = .hat, y = .std.resid)) +
+  geom_point(alpha = 0.4, colour = "#3E6D9C") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Residuals vs Leverage",
+       x = "Leverage", y = "Standardised residuals") +
+  theme_minimal(base_size = 12)
+
+# Combine the four plots
+library(patchwork)
+(p1 + p2) / (p3 + p4)
+```
+### Assumption checks
+
+The four diagnostic plots and the VIF values for the final selected model support the use of ordinary least squares.
+
+- **Residuals vs Fitted**: The points form a roughly random cloud around the zero line with only a mild upward curve at the extreme right. Linearity is acceptable.
+- **Normal Q-Q**: The standardised residuals follow the reference line closely in the centre. Mild deviation appears in both tails (especially the upper tail). With n = 2,400 this is expected and does not invalidate the model.
+- **Scale-Location**: The red smoother is almost flat, indicating roughly constant variance (homoscedasticity).
+- **Residuals vs Leverage**: No observations have high leverage (maximum ≈ 0.016). Influential points are not a concern.
+- **VIF**: All generalised VIFs are extremely close to 1 (highest ≈ 1.09). Multicollinearity is absent.
+
+Overall the LINE assumptions are sufficiently met for inference.
+
+**Independence limitation.** Students are nested within schools, so observations from the same school may share unmeasured characteristics and may not be completely independent. The analysis follows the assignment requirement to use ordinary multiple linear regression, but this clustering should be treated as a limitation; a multilevel model would be a useful extension in future work.
+
+
+```{r task5-vif}
+# Variance Inflation Factors
+vif_values <- vif(step_model)
+vif_values
+
+```
+
+```{r task5-formal-tests}
+# Formal checks for residual normality and constant variance.
+shapiro_resid <- shapiro.test(residuals(step_model))
+ncv_resid <- car::ncvTest(step_model)
+
+formal_line_tests <- tibble(
+  Test = c("Shapiro-Wilk normality test", "Non-constant variance test"),
+  Statistic = c(
+    unname(shapiro_resid$statistic),
+    unname(ncv_resid$ChiSquare)
+  ),
+  `p-value` = c(shapiro_resid$p.value, ncv_resid$p)
+)
+
+formal_line_tests %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4))) %>%
+  knitr::kable(caption = "Table 18: Formal residual diagnostics for normality and constant variance.")
+```
+
+The formal residual tests are interpreted alongside the diagnostic plots rather than as automatic
+pass/fail gates. With this large sample, small departures can produce small p-values; the Q-Q,
+residuals-versus-fitted and scale-location plots therefore provide the main graphical evidence,
+while VIF addresses multicollinearity. Independence remains a limitation because students are
+nested within schools.
+
+
+
+
+
+
+
+
+
+```{r task5-final-table}
+# Final model table with gtsummary
+tbl_final <- tbl_regression(
+  step_model,
+  label = list(
+    Attendance_Rate_Pct    ~ "Attendance rate (%)",
+    Teacher_Support_Score  ~ "Teacher support score",
+    Resource_Index         ~ "School resource index",
+    Pupil_Teacher_Ratio    ~ "Pupil–teacher ratio",
+    HH_Income_Band         ~ "Household income band",
+    Residence_Type         ~ "Residence type"
+  ),
+  intercept = TRUE
+) %>%
+  add_glance_table(include = c(r.squared, adj.r.squared, AIC, nobs)) %>%
+  modify_header(label ~ "**Variable**") %>%
+  modify_footnote(
+    everything() ~ "Multiple linear regression. Reference categories: Low income, Day student. 95% confidence intervals shown."
+  ) %>%
+  bold_labels()
+
+tbl_final %>%
+  as_kable()
+```
+
+### Results interpretation
+
+The final model after stepwise selection retained six predictors and explained 12.70% of the variance in dropout risk (adjusted R² = 0.125, F(7, 2392) = 49.72, p < .001). Although the overall model is highly significant, the modest R² indicates that most of the variation in dropout risk remains unexplained by the measured student and school characteristics.
+Three coefficients are particularly clear. First, attendance shows the strongest association: each additional percentage point of attendance is linked to a 0.034-point reduction in the dropout-risk score (95% CI [−0.039, −0.030], p < .001). Second, household income matters. Relative to students from low-income households, those from mid-income and high-income households have predicted scores 0.393 and 0.506 points lower, respectively (both p < .001). Third, boarding students have a 0.24-point lower predicted risk than day students (95% CI [−0.34, −0.14], p < .001).
+The remaining three continuous predictors (teacher support, school resource index, and pupil–teacher ratio) have small negative coefficients but are not statistically significant at the conventional 5% level (p-values of 0.093, 0.105 and 0.121). Teacher support is marginal at the 10% level, so that result should be described as suggestive rather than conventionally significant. In short, regular attendance, higher household income, and boarding status are the clearest protective factors identified in this sample; school-level resource measures add little once these are accounted for.
+
+# 7. Task 6: Predictive Analytics
+
+## 7.1 Approach choice and justification
+
+We choose **Option A: supervised machine learning**, fitting both a decision tree
+and a random forest inside a `tidymodels` pipeline.
+
+The choice follows from the shape of our analytical question. Tasks 4 and 5 asked
+which characteristics are *associated* with poor outcomes, and answered with
+coefficients and p-values. Task 6 asks a different question: given only what we
+know about a student before their results are published, how well can we actually
+*identify* the students who will not pass? That is a prediction problem with a
+labelled target, so supervised learning is the right family. Unsupervised
+clustering (Option B) would tell us how students group together, but it cannot
+answer the question we have been building toward since Task 1.
+
+Our primary outcome, `Dropout_Risk_Score`, is continuous, and Option A's required
+metrics - accuracy, AUC-ROC, sensitivity and specificity - are classification
+metrics. We therefore use the **secondary outcome `Passed_Core`**, which the
+introduction already reserved for the Task 6 classification model. This is a
+deliberate continuation, not a switch: Task 5 modelled the continuous outcome as
+Pathway A required, and Task 6 takes up the binary outcome declared alongside it
+in Task 2a.
+
+Task 4 found that household income one of the better predictors available to us 
+is associated with `Passed_Core`
+at only Cramér's V ≈ 0.09, and we wrote there that a leakage-free model should not
+be expected to beat the majority baseline by much. The value of Task 6 is
+therefore not a high accuracy number. 
+
+### Guarding against leakage
+
+Three exclusions carry forward the leakage rule set in Task 1.
+
+- **`Perf_Band`** is a bucketed version of `Overall_Average`, and `Passed_Core`
+  is defined as `Overall_Average >= 50`. Including it would let the model read
+  the answer off the target's own definition.
+- **`Dropout_Risk_Score` and `Risk_Level`** are excluded as well. The codebook
+  states that dropout risk is derived partly *from performance*, so it carries
+  the target's information indirectly. Keeping it would inflate our metrics
+  through the back door, which is exactly the failure mode we have been
+  avoiding since Task 1.
+- **`Attendance_Gap`** is dropped because it is `100 - Attendance_Rate_Pct` and
+  therefore perfectly collinear with a predictor we are already using. We keep
+  the attendance rate itself.
+
+The four subject scores are retained in `dat_clean` only for the required Task 3 visualisation and are explicitly excluded from the regression model to avoid leakage. `Overall_Average` was removed in the Task 2 select step for the same reason. What remains is the student, household and
+school information that would realistically be on file before results are known.
+
+```{r task6-packages}
+# Task 6 packages
+# Install them automatically if they are not already on the computer.
+if (!requireNamespace("themis", quietly = TRUE)) {
+  install.packages("themis")
+}
+
+if (!requireNamespace("vip", quietly = TRUE)) {
+  install.packages(
+    "vip",
+    repos = c("https://bgreenwell.r-universe.dev", "https://cloud.r-project.org")
+  )
+}
+
+library(tidymodels)
+library(themis)
+library(vip)
+
+# Task 5 loaded MASS, which can mask dplyr::select(). This tells tidymodels
+# to prefer the tidyverse versions of overlapping functions.
+tidymodels_prefer()
+```
+
+## 7.2 Target, predictors, and class balance
+
+```{r task6-data}
+dat_task6 <- dat_clean %>%
+  dplyr::select(
+    # target
+    Passed_Core,
+    # student demographics
+    Sex, Age, Form_Level, Residence_Type,
+    # household background
+    Parent_Education, Parent_Occupation, HH_Income_Band, HH_Size, Orphan_Status,
+    # student engagement
+    Attendance_Rate_Pct, Study_Hours_Day, Has_Textbooks_All,
+    Internet_Access_School, Bullying_Experienced,
+    # perceived school quality
+    Teacher_Support_Score,
+    # school context and resources
+    School_Level, School_Type, Urban_Rural, Region,
+    Resource_Index, Pupil_Teacher_Ratio
+  ) %>%
+  # recipes need factors, not character, for dummy coding
+  mutate(across(where(is.character), as.factor)) %>%
+  droplevels()
+
+dim(dat_task6)
+```
+
+```{r task6-class-balance}
+class_balance <- dat_task6 %>%
+  count(Passed_Core, name = "n") %>%
+  mutate(Percentage = round(100 * n / sum(n), 1))
+
+minority_pct <- min(class_balance$Percentage)
+use_smote <- minority_pct < 30
+
+class_balance %>%
+  knitr::kable(caption = "Table 19: Class balance of Passed_Core in the Task 6 modelling sample.")
+```
+
+**Is SMOTE needed?** The brief sets the rule at a minority class below 30%. In
+this sample the minority class is `r minority_pct`% of students, so SMOTE is
+`r if (minority_pct < 30) "required" else "not required"`. We apply it
+`r if (use_smote) "in the recipe below, to the training folds only" else "nowhere in this pipeline"`.
+This matters more than it looks: synthetic minority observations must never be
+generated before the split or on the test set, because that would leak
+information from held-out students into training and inflate every metric we
+report. Placing `step_smote()` inside the recipe means `tidymodels` regenerates
+it independently within each resample.
+
+## 7.3 Data split and cross-validation
+
+We hold out 30% of students as a test set, stratified on `Passed_Core` so both
+splits keep the same class proportions. All tuning happens on the remaining 70%
+using 10-fold stratified cross-validation, as the brief requires. The test set is
+touched exactly once, at the very end.
+
+```{r task6-split}
+set.seed(602)
+task6_split <- initial_split(dat_task6, prop = 0.70, strata = Passed_Core)
+task6_train <- training(task6_split)
+task6_test  <- testing(task6_split)
+
+set.seed(602)
+task6_folds <- vfold_cv(task6_train, v = 10, strata = Passed_Core)
+
+cat("Training rows:", nrow(task6_train), "\n")
+cat("Test rows:    ", nrow(task6_test), "\n")
+cat("Folds:        ", nrow(task6_folds), "\n")
+```
+
+## 7.4 preprocessing
+
+Both models share the same imputation and dummy-coding steps, then diverge on
+normalisation.
+
+- **Imputation.** Task 1 already filled the predictors we use here, so no missing
+  values should remain. We keep `step_impute_median()` and `step_impute_mode()`
+  anyway as a safeguard: resampling can isolate a rare category in a single fold,
+  and a recipe that assumes complete data would fail there.
+- **Dummy coding.** `step_dummy()` converts the categorical predictors to
+  indicator columns. `step_novel()` runs first so that a category appearing only
+  in the test set does not break prediction.
+- **Normalisation - random forest only, and only because the brief asks for it.**
+  We should state plainly that **neither tree-based model needs scaling**. Trees
+  split on thresholds within a single variable at a time, so a monotonic
+  rescaling of that variable produces exactly the same splits. We add
+  `step_normalize()` to the random forest recipe to satisfy the requirement, and
+  note that we expect it to make no material difference to the results.
+
+```{r task6-recipes}
+base_recipe <- recipe(Passed_Core ~ ., data = task6_train) %>%
+  step_impute_median(all_numeric_predictors()) %>%
+  step_impute_mode(all_nominal_predictors()) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors())
+
+# Decision tree: no scaling (see justification above)
+tree_recipe <- base_recipe
+
+# Random forest: normalisation added as the brief specifies
+rf_recipe <- base_recipe %>%
+  step_normalize(all_numeric_predictors())
+
+# SMOTE, if and only if the minority class is under 30%
+if (use_smote) {
+  tree_recipe <- tree_recipe %>% step_smote(Passed_Core)
+  rf_recipe   <- rf_recipe   %>% step_smote(Passed_Core)
+}
+
+tree_recipe
+```
+
+## 7.5 Model specifications and tuning grids
+
+We tune two hyperparameters per model, as required.
+
+- **Decision tree:** `cost_complexity` (the pruning penalty - the main defence
+  against a tree that memorises the training set) and `tree_depth` (how many
+  splits deep the tree may grow).
+- **Random forest:** `mtry` (how many predictors each split may consider, which
+  controls how decorrelated the trees are) and `min_n` (the minimum node size,
+  which limits how far each tree splits). We fix `trees = 500`, which is enough
+  for stable out-of-bag behaviour on a sample this size.
+
+```{r task6-specs}
+tree_spec <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth      = tune(),
+  min_n           = 20
+) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+rf_spec <- rand_forest(
+  mtry  = tune(),
+  min_n = tune(),
+  trees = 500
+) %>%
+  # permutation importance is needed for the importance plot in section 7.7
+  set_engine("ranger", importance = "permutation") %>%
+  set_mode("classification")
+
+tree_grid <- grid_regular(
+  cost_complexity(range = c(-4, -1)),   # log10 scale
+  tree_depth(range = c(3, 12)),
+  levels = 4
+)
+
+rf_grid <- grid_regular(
+  mtry(range  = c(2, 15)),
+  min_n(range = c(2, 40)),
+  levels = 3
+)
+
+# metrics required by the brief
+task6_metrics <- metric_set(accuracy, roc_auc, sens, spec)
+```
+
+```{r task6-tune, message = FALSE}
+tree_wf <- workflow() %>% add_recipe(tree_recipe) %>% add_model(tree_spec)
+rf_wf   <- workflow() %>% add_recipe(rf_recipe)   %>% add_model(rf_spec)
+
+set.seed(602)
+tree_tuned <- tune_grid(
+  tree_wf,
+  resamples = task6_folds,
+  grid      = tree_grid,
+  metrics   = task6_metrics,
+  control   = control_grid(save_pred = TRUE)
+)
+
+set.seed(602)
+rf_tuned <- tune_grid(
+  rf_wf,
+  resamples = task6_folds,
+  grid      = rf_grid,
+  metrics   = task6_metrics,
+  control   = control_grid(save_pred = TRUE)
+)
+```
+
+```{r task6-best-params}
+tree_best <- select_best(tree_tuned, metric = "roc_auc")
+rf_best   <- select_best(rf_tuned,   metric = "roc_auc")
+
+bind_rows(
+  tree_best %>% mutate(Model = "Decision tree") %>%
+    mutate(across(everything(), as.character)) %>%
+    pivot_longer(-Model, names_to = "Hyperparameter", values_to = "Value"),
+  rf_best %>% mutate(Model = "Random forest") %>%
+    mutate(across(everything(), as.character)) %>%
+    pivot_longer(-Model, names_to = "Hyperparameter", values_to = "Value")
+) %>%
+  filter(Hyperparameter != ".config") %>%
+  knitr::kable(caption = "Table 20: Hyperparameters selected by 10-fold cross-validation (chosen on AUC-ROC).")
+```
+
+We select on AUC-ROC rather than accuracy because accuracy is misleading on an
+imbalanced target - a model that predicts the majority class for every student
+scores well on accuracy while identifying none of the students we care about.
+AUC-ROC measures ranking quality across all thresholds and is not fooled that way.
+
+## 7.6 Final fit on the test set
+
+`last_fit()` refits each tuned workflow on the full training set and evaluates it
+once on the held-out 30%.
+
+```{r task6-last-fit}
+set.seed(602)
+tree_fit <- last_fit(
+  finalize_workflow(tree_wf, tree_best),
+  split   = task6_split,
+  metrics = task6_metrics
+)
+
+set.seed(602)
+rf_fit <- last_fit(
+  finalize_workflow(rf_wf, rf_best),
+  split   = task6_split,
+  metrics = task6_metrics
+)
+```
+
+```{r task6-comparison-table}
+# helper so the write-up below quotes the computed numbers, never typed ones
+get_metric <- function(res, metric_name) {
+  collect_metrics(res) %>%
+    filter(.metric == metric_name) %>%
+    pull(.estimate) %>%
+    round(3)
+}
+
+model_comparison <- bind_rows(
+  collect_metrics(tree_fit) %>% mutate(Model = "Decision tree"),
+  collect_metrics(rf_fit)   %>% mutate(Model = "Random forest")
+) %>%
+  dplyr::select(Model, .metric, .estimate) %>%
+  mutate(.estimate = round(.estimate, 3)) %>%
+  pivot_wider(names_from = .metric, values_from = .estimate) %>%
+  dplyr::rename(
+    Accuracy      = accuracy,
+    `AUC-ROC`     = roc_auc,
+    Sensitivity   = sens,
+    Specificity   = spec
+  )
+
+# majority-class baseline on the test set, for honest comparison
+baseline_acc <- task6_test %>%
+  count(Passed_Core) %>%
+  summarise(acc = round(max(n) / sum(n), 3)) %>%
+  pull(acc)
+
+model_comparison %>%
+  flextable() %>%
+  set_caption(
+    paste0("Table 21: Test-set performance of the two models. ",
+           "Sensitivity is the detection rate for students who did NOT pass ",
+           "(the event level). Majority-class baseline accuracy = ",
+           baseline_acc, ".")
+  ) %>%
+  autofit()
+```
+
+```{r task6-confusion-matrices}
+tree_cm <- collect_predictions(tree_fit) %>%
+  conf_mat(truth = Passed_Core, estimate = .pred_class)
+
+rf_cm <- collect_predictions(rf_fit) %>%
+  conf_mat(truth = Passed_Core, estimate = .pred_class)
+
+as.data.frame.matrix(tree_cm$table) %>%
+  rownames_to_column("Predicted") %>%
+  knitr::kable(caption = "Table 22: Decision tree confusion matrix on the test set (rows = predicted, columns = observed).")
+
+as.data.frame.matrix(rf_cm$table) %>%
+  rownames_to_column("Predicted") %>%
+  knitr::kable(caption = "Table 23: Random forest confusion matrix on the test set (rows = predicted, columns = observed).")
+```
+
+## 7.7 Variable importance
+
+```{r task6-vip, fig.cap = "Figure 10: Permutation variable importance for the tuned random forest. Bars show the decrease in predictive performance when a predictor is shuffled; larger bars indicate greater model reliance.", fig.height = 6}
+rf_parsnip <- extract_fit_parsnip(rf_fit)
+
+vip::vip(rf_parsnip, num_features = 15,
+         aesthetics = list(fill = "#3E6D9C")) +
+  labs(
+    title    = "What the random forest relies on",
+    subtitle = "Permutation importance, tuned model, Passed_Core as target"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+## 7.8 Discussion
+
+```{r task6-discussion-values}
+tree_acc  <- get_metric(tree_fit, "accuracy"); rf_acc  <- get_metric(rf_fit, "accuracy")
+tree_auc  <- get_metric(tree_fit, "roc_auc");  rf_auc  <- get_metric(rf_fit, "roc_auc")
+tree_sens <- get_metric(tree_fit, "sens");     rf_sens <- get_metric(rf_fit, "sens")
+tree_spec <- get_metric(tree_fit, "spec");     rf_spec <- get_metric(rf_fit, "spec")
+```
+
+The decision tree reached `r tree_acc` accuracy and `r tree_auc` AUC-ROC on the held-out students, while the random forest reached `r rf_acc` accuracy and `r rf_auc` AUC-ROC. The majority-class baseline was `r baseline_acc`, so neither model improved on the accuracy obtained by predicting that every student passed. Sensitivity for students who did not pass was low (`r tree_sens` for the tree and `r rf_sens` for the forest), whereas specificity was much higher (`r tree_spec` and `r rf_spec`). This means both models were substantially better at identifying passers than students who failed.
+
+`r if (use_smote) "SMOTE was applied within the training folds because the minority class was below the assignment threshold; however, the held-out results remained weak." else "The minority class was above the assignment threshold, so SMOTE was not required; the held-out results remained weak."` The AUC values, only modestly above 0.50, suggest limited predictive signal in the available pre-results variables. The variable-importance plot places greatest emphasis on attendance and household background, consistent with the earlier analyses. These results therefore provide a useful negative finding: the available variables are better for describing differences in risk than for accurately classifying individual failures.
+
+**Recommendation.** The random forest is preferred between the two models because it provides better ranking performance and averages many trees, but neither model is suitable for high-stakes individual decisions in its current form. A stronger system would require richer longitudinal information, such as term-by-term performance, attendance trajectories or teacher referrals.
